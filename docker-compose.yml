@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: socdem-postgres
+    environment:
+      POSTGRES_USER: socdem
+      POSTGRES_PASSWORD: socdem
+      POSTGRES_DB: socdem
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  pgdata:

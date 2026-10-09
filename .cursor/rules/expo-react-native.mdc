@@ -1,0 +1,47 @@
+---
+description: Expo / React Native — SDK docs, commands, Router, EAS, native generation
+alwaysApply: true
+---
+
+# Expo / React Native
+
+Mobile-first patterns, performance, and cross-platform compatibility.
+
+## Expo has changed — do not trust training data
+
+Expo ships breaking changes every SDK release. Before writing code that touches Expo, EAS, or React Native APIs:
+
+1. Read the major version of `expo` in `package.json`.
+2. Fetch matching docs: `https://docs.expo.dev/versions/v<major>.0.0/`
+3. For anything else, fetch https://docs.expo.dev/llms.txt and follow links to specific pages — never answer from memory.
+
+## Commands
+
+Use `bunx` instead of `npx` if the project has `bun.lock`.
+
+- `npx expo install <package>` — always use instead of npm/yarn/pnpm/bun add (SDK-compatible versions)
+- `npx expo start` — dev server
+- `npx expo lint` — lint
+- `npx tsc --noEmit` — typecheck
+- `npx expo-doctor` — dependency/config diagnostics
+- `npx expo install --fix` — fix incompatible versions
+
+Run lint and typecheck before declaring any task done.
+
+## Navigation & routing
+
+- Use **Expo Router** for all navigation. Routes live in `src/app/`; `_layout.tsx` files define navigators. Keep components, hooks, and utils outside `src/app/`.
+- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
+- Docs: https://docs.expo.dev/router/introduction.md
+
+## EAS
+
+Cloud build, sign, submit (`eas build`, `eas submit`) and OTA updates (`eas update`). Run EAS CLI as `bunx eas-cli <command>` in Bun projects, otherwise `npx eas-cli@latest <command>`.
+Docs: https://docs.expo.dev/eas/index.md
+
+## Native projects & modules
+
+- If `ios/` and `android/` do not exist, they are generated (Continuous Native Generation). Do not create or edit them by hand — configure in `app.json` and config plugins.
+- Expo Go only includes bundled native modules. After adding a library with native code, use a development build: `npx expo run:ios|android` or `eas build --profile development`.
+- Prefer recommended Expo modules over third-party libraries; check project skills before adding dependencies.
+- Docs: https://docs.expo.dev/versions/latest/index.md
