@@ -55,6 +55,21 @@ ALTER TABLE student DROP CONSTRAINT IF EXISTS student_housing_check;
 ALTER TABLE student ADD CONSTRAINT student_housing_check
   CHECK (housing IS NULL OR housing IN ('barracks', 'off_barracks'));
 
+ALTER TABLE student ADD COLUMN IF NOT EXISTS category TEXT;
+UPDATE student SET category = 'cadet' WHERE category IS NULL;
+ALTER TABLE student ALTER COLUMN category SET DEFAULT 'cadet';
+ALTER TABLE student ALTER COLUMN category SET NOT NULL;
+ALTER TABLE student DROP CONSTRAINT IF EXISTS student_category_check;
+ALTER TABLE student ADD CONSTRAINT student_category_check
+  CHECK (category IN ('cadet', 'officer', 'civilian'));
+ALTER TABLE student ALTER COLUMN group_id DROP NOT NULL;
+ALTER TABLE student DROP CONSTRAINT IF EXISTS student_category_group_check;
+ALTER TABLE student ADD CONSTRAINT student_category_group_check
+  CHECK (
+    (category = 'cadet' AND group_id IS NOT NULL)
+    OR category IN ('officer', 'civilian')
+  );
+
 CREATE TABLE IF NOT EXISTS student_photo (
     id SERIAL PRIMARY KEY,
     student_id INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE,
@@ -118,6 +133,7 @@ CREATE TABLE IF NOT EXISTS student_discipline (
     kind TEXT NOT NULL CHECK (kind IN ('commendation', 'reprimand', 'severe_reprimand')),
     issued_at DATE NOT NULL DEFAULT CURRENT_DATE,
     reason TEXT,
+    imposed_by TEXT,
     closes_id INTEGER REFERENCES student_discipline(id) ON DELETE SET NULL,
     closed_at DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -165,3 +181,27 @@ CREATE TABLE IF NOT EXISTS app_session (
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_expires ON app_session (expires_at);
+
+CREATE TABLE IF NOT EXISTS place_catalog (
+    id SERIAL PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('birth_place', 'registration_address', 'residence_address')),
+    label TEXT NOT NULL,
+    normalized TEXT NOT NULL,
+    sort_rank SMALLINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (kind, normalized)
+);
+
+CREATE INDEX IF NOT EXISTS idx_place_catalog_kind_norm
+    ON place_catalog (kind, normalized);
+
+CREATE TABLE IF NOT EXISTS address_entry (
+    id SERIAL PRIMARY KEY,
+    label TEXT NOT NULL,
+    normalized TEXT NOT NULL UNIQUE,
+    source TEXT NOT NULL DEFAULT 'local',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_address_entry_normalized
+    ON address_entry (normalized);

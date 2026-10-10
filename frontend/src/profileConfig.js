@@ -25,6 +25,22 @@ export const PROFILE_FIELDS = [
   { key: "car", label: "Автомобиль (водитель)" },
 ];
 
+/** Место рождения и адреса — подсказки по субъектам РФ (офлайн) */
+export const PROFILE_PLACE_FIELD_KEYS = [
+  "birth_place",
+  "registration_address",
+  "residence_address",
+];
+
+/** Поля соцдема с подсказками из уже внесённых карточек (форма «Добавить человека») */
+export const PROFILE_SUGGEST_FIELD_KEYS = [
+  "nationality",
+  "specialty",
+  "specialization",
+  "foreign_languages",
+  "marital_status",
+];
+
 export const RELATIVE_FIELDS = [
   { key: "relation", label: "Кто (отец, мать, брат…)", required: true },
   { key: "full_name", label: "ФИО", required: true, wide: true },
@@ -87,3 +103,36 @@ export function mourningSummary(m) {
   if (m.notes) bits.push(m.notes);
   return { title: who || m.full_name, text: bits.join("; ") };
 }
+
+/** Якоря карточки для перехода с главной и других экранов */
+export const SOCDEM_NAV_DEFAULT = "socdem-field-identity";
+
+export const SOCDEM_NAV_GROUPS = [
+  {
+    label: "Основное",
+    targets: [
+      { id: "socdem-field-identity", label: "Ф.И.О." },
+      { id: "socdem-field-birth_date", label: "Дата рождения" },
+      { id: "socdem-field-phone", label: "Номер телефона" },
+      { id: "socdem-field-group", label: "Группа" },
+    ],
+  },
+  {
+    label: "Данные соцдема",
+    targets: PROFILE_FIELDS.map((f) => ({
+      id: `socdem-field-${f.key}`,
+      label: f.label,
+    })),
+  },
+  {
+    label: "Разделы карточки",
+    targets: [
+      { id: "socdem-section-relatives", label: "Семья (отец, мать, братья, сёстры)" },
+      { id: "socdem-section-commanders", label: "Данные на командиров" },
+      { id: "socdem-section-career", label: "Работа в прошлом" },
+      { id: "socdem-section-mourning", label: "Печальные события" },
+      { id: "socdem-section-discipline", label: "Дисциплинарная практика" },
+      { id: "socdem-section-photos", label: "Цветное фото" },
+    ],
+  },
+];

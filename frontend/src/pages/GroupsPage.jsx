@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 import { api, photoUrl } from "../api";
-import HousingPicker from "../components/HousingPicker.jsx";
+import FioSearchField from "../components/FioSearchField.jsx";
+import PageLoader from "../components/PageLoader.jsx";
 import { IdentityCells, IdentityHeaderCells } from "../components/PersonIdentity.jsx";
-import { formatDate, fullName, personSearchHay } from "../utils";
+import { formatDate, fullName, personCategory, personSearchHay } from "../utils";
 
 function asBool(v) {
   return v === true || v === "t" || v === "true";
@@ -28,7 +29,7 @@ export default function GroupsPage() {
     Promise.all([api.groups(), api.students()])
       .then(([gr, st]) => {
         setGroups(gr);
-        setStudents(st);
+        setStudents(st.filter((s) => personCategory(s) === "cadet"));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -80,7 +81,7 @@ export default function GroupsPage() {
     return rosterAll.filter((s) => personSearchHay(s).toLowerCase().includes(q));
   }, [rosterAll, query]);
 
-  if (loading) return <p className="muted">Загрузка групп…</p>;
+  if (loading) return <PageLoader label="Загрузка групп…" />;
 
   const unknownId = Boolean(id) && !selected;
 
@@ -137,7 +138,7 @@ export default function GroupsPage() {
           </div>
         ) : (
           <>
-            <div className="card-head">
+            <div className="card-head list-head">
               <div>
                 <p className="section-caption">Группа {selected.name}</p>
                 <p className="muted">
@@ -145,9 +146,8 @@ export default function GroupsPage() {
                   {selected.stream_title ? ` · ${selected.stream_title}` : ""}
                 </p>
               </div>
-              <input
-                type="search"
-                className="search"
+              <FioSearchField
+                grow
                 placeholder="Поиск по ФИО, должности, званию…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -162,7 +162,6 @@ export default function GroupsPage() {
                     <IdentityHeaderCells />
                     <th>ФИО</th>
                     <th>Фото</th>
-                    <th>Проживание</th>
                     <th>Телефон</th>
                     <th>Дата рождения</th>
                     <th />
@@ -191,21 +190,6 @@ export default function GroupsPage() {
                             <span key={slot} className="thumb-empty" />
                           )
                         )}
-                      </td>
-                      <td>
-                        <HousingPicker
-                          compact
-                          name={`housing-g-${s.id}`}
-                          value={s.housing || ""}
-                          onChange={async (housing) => {
-                            await api.updateStudent(s.id, { housing });
-                            setStudents((list) =>
-                              list.map((x) =>
-                                x.id === s.id ? { ...x, housing } : x
-                              )
-                            );
-                          }}
-                        />
                       </td>
                       <td>
                         <a href={`tel:${s.phone.replace(/\s/g, "")}`}>

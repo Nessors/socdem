@@ -60,6 +60,36 @@ function Test-PortBusy {
   }
 }
 
+function Stop-OurApp {
+  if (-not (Test-OurApp)) {
+    return
+  }
+  $tokenPath = Join-Path $root "data\control.token"
+  if (Test-Path $tokenPath) {
+    $token = (Get-Content $tokenPath -Raw).Trim()
+    try {
+      Invoke-WebRequest -Uri "http://127.0.0.1:3001/api/shutdown" -Method POST `
+        -Headers @{ "x-socdem-stop" = $token } -UseBasicParsing -TimeoutSec 15 | Out-Null
+    } catch {
+      # ignore — fallback to lock file below
+    }
+    for ($i = 0; $i -lt 40; $i++) {
+      if (-not (Test-OurApp)) {
+        return
+      }
+      Start-Sleep -Milliseconds 500
+    }
+  }
+  $lockPath = Join-Path $root "data\server.lock"
+  if (Test-Path $lockPath) {
+    $oldPid = [int]((Get-Content $lockPath -Raw).Trim())
+    if ($oldPid -gt 0) {
+      Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue
+      Start-Sleep -Seconds 2
+    }
+  }
+}
+
 $drive = Get-LaunchDrive
 if ($drive.DriveType -eq "Network" -or $drive.Kind -eq "network") {
   Fail "Программу нельзя запускать с сетевой папки." -CopyHint
@@ -90,9 +120,8 @@ foreach ($item in $required) {
 $nodeExe = Join-Path $root "runtime\node\node.exe"
 
 if (Test-OurApp) {
-  Write-Host "База уже открыта. Открываю сайт."
-  Start-Process "http://127.0.0.1:3001"
-  exit 0
+  Write-Host "База уже открыта — перезапускаю, чтобы подхватить обновления программы."
+  Stop-OurApp
 }
 
 if (Test-PortBusy) {

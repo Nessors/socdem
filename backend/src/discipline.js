@@ -1,3 +1,7 @@
+import {
+  canLiftPenaltyWithCommendation,
+  isDisciplineAuthorityId,
+} from "../../disciplineAuthorities.js";
 import { pool } from "./db.js";
 
 export const DISCIPLINE_KINDS = {
@@ -15,6 +19,7 @@ const SELECT = `
     d.kind,
     d.issued_at,
     d.reason,
+    d.imposed_by,
     d.closes_id,
     d.closed_at,
     d.created_at,
@@ -26,7 +31,8 @@ const SELECT = `
     closer.id AS lifted_by_id,
     closer.issued_at AS lifted_at,
     closed.kind AS closed_kind,
-    closed.issued_at AS closed_issued_at
+    closed.issued_at AS closed_issued_at,
+    closed.imposed_by AS closed_penalty_imposed_by
   FROM student_discipline d
   JOIN student st ON st.id = d.student_id
   JOIN student_group g ON g.id = st.group_id
@@ -68,6 +74,26 @@ export async function createDiscipline(req, res) {
     return;
   }
 
+  const imposedByRaw = req.body?.imposed_by;
+  const imposedBy =
+    imposedByRaw == null || imposedByRaw === ""
+      ? null
+      : String(imposedByRaw).trim();
+
+  if (!imposedBy) {
+    res.status(400).json({
+      error:
+        kind === "commendation"
+          ? "Укажите, кем объявлена благодарность"
+          : "Укажите, кем наложено взыскание",
+    });
+    return;
+  }
+  if (!isDisciplineAuthorityId(imposedBy)) {
+    res.status(400).json({ error: "Некорректная должность «кем наложено»" });
+    return;
+  }
+
   const { rows: students } = await pool.query("SELECT id FROM student WHERE id = $1", [
     studentId,
   ]);
@@ -81,11 +107,12 @@ export async function createDiscipline(req, res) {
     await client.query("BEGIN");
 
     let closesId = null;
+    let penaltyImposedBy = null;
     if (kind === "commendation") {
       const closeRaw = req.body?.close_penalty_id;
       if (closeRaw === "latest" || closeRaw === true) {
         const { rows: open } = await client.query(
-          `SELECT id FROM student_discipline
+          `SELECT id, imposed_by FROM student_discipline
            WHERE student_id = $1
              AND kind IN ('reprimand', 'severe_reprimand')
              AND closed_at IS NULL
@@ -94,6 +121,7 @@ export async function createDiscipline(req, res) {
           [studentId]
         );
         closesId = open[0]?.id ?? null;
+        penaltyImposedBy = open[0]?.imposed_by ?? null;
       } else if (closeRaw != null && closeRaw !== "" && closeRaw !== false) {
         closesId = parseId(closeRaw);
         if (!closesId) {
@@ -102,7 +130,7 @@ export async function createDiscipline(req, res) {
           return;
         }
         const { rows: penalty } = await client.query(
-          `SELECT id, student_id, kind, closed_at FROM student_discipline WHERE id = $1`,
+          `SELECT id, student_id, kind, closed_at, imposed_by FROM student_discipline WHERE id = $1`,
           [closesId]
         );
         const p = penalty[0];
@@ -116,15 +144,60 @@ export async function createDiscipline(req, res) {
           res.status(400).json({ error: "Это взыскание уже снято" });
           return;
         }
+        penaltyImposedBy = p.imposed_by ?? null;
       }
     }
 
-    const { rows: created } = await client.query(
-      `INSERT INTO student_discipline (student_id, kind, issued_at, reason, closes_id)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id`,
-      [studentId, kind, issuedAt, reason, closesId]
-    );
+    if (closesId) {
+      if (!penaltyImposedBy || !isDisciplineAuthorityId(penaltyImposedBy)) {
+        await client.query("ROLLBACK");
+        res.status(400).json({
+          error:
+            "У взыскания не указано, кем наложено. Снятие недоступно — удалите запись и внесите взыскание заново с должностью.",
+        });
+        return;
+      }
+      if (!canLiftPenaltyWithCommendation(imposedBy, penaltyImposedBy)) {
+        await client.query("ROLLBACK");
+        res.status(400).json({
+          error:
+            "Этой должностью нельзя снять выбранное взыскание. Выберите должность с более высоким полномочием.",
+        });
+        return;
+      }
+    }
+
+    let created;
+    try {
+      ({ rows: created } = await client.query(
+        `INSERT INTO student_discipline (student_id, kind, issued_at, reason, imposed_by, closes_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, imposed_by`,
+        [studentId, kind, issuedAt, reason, imposedBy, closesId]
+      ));
+    } catch (insertErr) {
+      const msg = String(insertErr?.message ?? insertErr);
+      if (/imposed_by/i.test(msg) && /column|does not exist/i.test(msg)) {
+        await client.query(
+          `ALTER TABLE student_discipline ADD COLUMN IF NOT EXISTS imposed_by TEXT`
+        );
+        ({ rows: created } = await client.query(
+          `INSERT INTO student_discipline (student_id, kind, issued_at, reason, imposed_by, closes_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id, imposed_by`,
+          [studentId, kind, issuedAt, reason, imposedBy, closesId]
+        ));
+      } else {
+        throw insertErr;
+      }
+    }
+
+    if (!created[0]?.imposed_by) {
+      await client.query(
+        `UPDATE student_discipline SET imposed_by = $1 WHERE id = $2`,
+        [imposedBy, created[0].id]
+      );
+    }
 
     if (closesId) {
       await client.query(

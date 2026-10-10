@@ -1,0 +1,246 @@
+/**
+ * Единые поля ввода (21st / shadcn-подобные) — все разделы.
+ */
+
+:root {
+  --field-height: 2.75rem;
+  --field-radius: 12px;
+  --field-border: rgba(197, 212, 230, 0.95);
+  --field-bg: #ffffff;
+  --field-bg-muted: #f8fafc;
+  --field-shadow: inset 0 1px 2px rgba(7, 20, 40, 0.05);
+  --field-shadow-focus:
+    inset 0 1px 2px rgba(7, 20, 40, 0.04),
+    0 0 0 3px rgba(63, 215, 255, 0.22);
+}
+
+/* Базовый контрол */
+.socdem-control,
+.student-form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.student-form select,
+.student-form textarea,
+.disc-form input:not([type="checkbox"]),
+.disc-form select,
+.disc-form textarea,
+.disc-close-box select,
+.filter-bar input:not([type="checkbox"]),
+.filter-bar select,
+.search:not(label),
+.search-wide,
+.table-panel select,
+.docx-batch-group-all select,
+.docx-batch-table select,
+.login-card input:not([type="checkbox"]),
+.dash-search-input,
+.dash-search-select,
+.quick-search-field input[type="search"],
+.region-suggest-field input[type="search"],
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--field-height);
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.35;
+  color: var(--ink);
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--field-radius);
+  box-shadow: var(--field-shadow);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.student-form textarea,
+.disc-form textarea,
+textarea.socdem-control {
+  min-height: 5.5rem;
+  resize: vertical;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+.socdem-control:hover,
+.student-form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):hover,
+.student-form select:hover,
+.disc-form input:hover,
+.disc-form select:hover,
+.filter-bar input:hover,
+.filter-bar select:hover,
+.login-card input:hover,
+.quick-search-field input:hover,
+.region-suggest-field input:hover {
+  border-color: rgba(20, 148, 200, 0.45);
+}
+
+.socdem-control:focus,
+.student-form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.student-form select:focus,
+.student-form textarea:focus,
+.disc-form input:focus,
+.disc-form select:focus,
+.disc-form textarea:focus,
+.disc-close-box select:focus,
+.filter-bar input:focus,
+.filter-bar select:focus,
+.search:focus,
+.search-wide:focus,
+.table-panel select:focus,
+.login-card input:focus,
+.dash-search-input:focus,
+.dash-search-select:focus,
+.quick-search-field input:focus,
+.region-suggest-field input:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brass-deep);
+  box-shadow: var(--field-shadow-focus);
+  background: #fff;
+}
+
+.socdem-control:disabled,
+.student-form input:disabled,
+.student-form select:disabled,
+.disc-form select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: var(--field-bg-muted);
+}
+
+.student-form select,
+.disc-form select,
+.filter-bar select,
+.table-panel select,
+.dash-search-select,
+.docx-batch-group-all select,
+.docx-batch-table select {
+  appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%231494c8' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  cursor: pointer;
+}
+
+/* Подписи полей */
+.student-form label,
+.form-field-block,
+.region-suggest-field,
+.disc-imposed-by,
+.disc-search-label,
+.disc-close-box label,
+.login-card label,
+.dash-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.student-form label,
+.form-field-block .form-field-label,
+.housing-field-label,
+.disc-search-label,
+.login-card label,
+.dash-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+/* Fio search — внутренняя обёртка без двойной рамки */
+.fio-search__wrap {
+  min-height: var(--field-height);
+  padding: 0 0.65rem 0 0.85rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--field-radius);
+  background: var(--field-bg);
+  box-shadow: var(--field-shadow);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.fio-search__wrap:focus-within {
+  border-color: var(--brass-deep);
+  box-shadow: var(--field-shadow-focus);
+}
+
+.fio-search__input {
+  min-height: calc(var(--field-height) - 4px);
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.fio-search__input:focus {
+  box-shadow: none !important;
+}
+
+/* Dash search toolbar — поле внутри wrap */
+.dash-search-input-wrap {
+  min-height: var(--field-height);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--field-border);
+  box-shadow: var(--field-shadow);
+}
+
+.dash-search-input-wrap:focus-within {
+  border-color: var(--brass-deep);
+  box-shadow: var(--field-shadow-focus);
+}
+
+.dash-search-input {
+  border: none !important;
+  box-shadow: none !important;
+  min-height: calc(var(--field-height) - 4px);
+  background: transparent !important;
+}
+
+/* Disc imposed select full width */
+.disc-imposed-by select {
+  max-width: 100%;
+}
+
+.disc-imposed-by--primary {
+  padding: 1rem 1.1rem;
+  border-radius: var(--field-radius);
+}
+
+/* Checkbox / radio в формах */
+.student-form input[type="checkbox"],
+.student-form input[type="radio"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--brass-deep);
+}
+
+/* Выпадающий список подсказок */
+.quick-search-list {
+  border-radius: var(--field-radius);
+  border-color: var(--field-border);
+  padding: 0.35rem;
+  box-shadow:
+    0 12px 32px rgba(7, 20, 40, 0.12),
+    0 0 0 1px rgba(63, 215, 255, 0.08);
+}
+
+.quick-search-list button {
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+}
+
+.housing-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

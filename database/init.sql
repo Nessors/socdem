@@ -119,6 +119,7 @@ CREATE TABLE student_discipline (
     kind TEXT NOT NULL CHECK (kind IN ('commendation', 'reprimand', 'severe_reprimand')),
     issued_at DATE NOT NULL DEFAULT CURRENT_DATE,
     reason TEXT,
+    imposed_by TEXT,
     closes_id INTEGER REFERENCES student_discipline(id) ON DELETE SET NULL,
     closed_at DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

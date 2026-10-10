@@ -244,6 +244,11 @@ const SUBJECTS = [
   { name: "Таджикистан", aliases: ["таджикистан"] },
 ];
 
+/** Канонические названия для справочника мест (рождение, прописка, проживание) */
+export function listCatalogRegionNames() {
+  return SUBJECTS.map((s) => s.name);
+}
+
 const NEEDLES = SUBJECTS.flatMap((s) =>
   s.aliases.map((alias) => ({
     name: s.name,

@@ -1,0 +1,143 @@
+/**
+ * Анимации: маршруты, деревья, кнопки — balanced motion, те же тона.
+ */
+
+:root {
+  --motion-route: 0.52s;
+  --motion-unfold: 0.38s;
+  --motion-empty: 0.7s;
+}
+
+@keyframes route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes roster-unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes empty-enter {
+  from {
+    border-color: rgba(20, 148, 200, 0.15);
+    box-shadow: 0 0 0 0 rgba(63, 215, 255, 0);
+  }
+  40% {
+    border-color: rgba(63, 215, 255, 0.55);
+    box-shadow: 0 0 0 4px rgba(63, 215, 255, 0.08);
+  }
+  to {
+    border-color: rgba(20, 148, 200, 0.4);
+    box-shadow: none;
+  }
+}
+
+@keyframes btn-shimmer {
+  from {
+    transform: translateX(-130%);
+  }
+  to {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes workspace-orb-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.85;
+  }
+  to {
+    transform: translate(-4%, 3%) scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes topbar-line-shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+    background-position: 200% 0;
+  }
+  50% {
+    opacity: 0.95;
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .app-main > * {
+    animation: route-enter var(--motion-route) var(--ease-out-expo) both;
+  }
+
+  .roster-groups,
+  .relatives-cadets,
+  .mourning-cadets {
+    animation: roster-unfold var(--motion-unfold) var(--ease-out-expo) both;
+  }
+
+  .empty,
+  .roster-empty {
+    animation: empty-enter var(--motion-empty) var(--ease-out-expo) both;
+  }
+
+  .btn.primary:not(:disabled),
+  a.btn.primary:not([aria-disabled="true"]),
+  label.btn.primary:not(:has(input[disabled])) {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn.primary:not(:disabled)::after,
+  a.btn.primary:not([aria-disabled="true"])::after,
+  label.btn.primary:not(:has(input[disabled]))::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    mix-blend-mode: soft-light;
+    background: linear-gradient(
+      105deg,
+      transparent 28%,
+      rgba(255, 255, 255, 0.55) 50%,
+      transparent 72%
+    );
+    transform: translateX(-130%);
+  }
+
+  .btn.primary:not(:disabled):hover::after,
+  a.btn.primary:not([aria-disabled="true"]):hover::after,
+  label.btn.primary:not(:has(input[disabled])):hover::after {
+    opacity: 1;
+    animation: btn-shimmer 0.72s var(--ease-out-expo);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-main > *,
+  .roster-groups,
+  .relatives-cadets,
+  .mourning-cadets,
+  .empty,
+  .roster-empty {
+    animation: none !important;
+  }
+
+  .btn.primary::after {
+    display: none;
+  }
+}

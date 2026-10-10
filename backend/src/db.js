@@ -17,6 +17,7 @@ import { PGlite, types } from "@electric-sql/pglite";
 import dotenv from "dotenv";
 import { maybeMigrateFromPostgres } from "./migrateFromPg.js";
 import { seedAdminUser } from "./auth.js";
+import { maintainPlaceCatalog } from "./placeCatalog.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const backendRoot = join(here, "..");
@@ -27,6 +28,7 @@ dotenv.config({ path: join(backendRoot, ".env") });
 export const dataDir = join(repoRoot, "data", "pgdata");
 
 const SCHEMA_SQL = readFileSync(join(here, "schema.sql"), "utf8");
+const MIGRATIONS_SQL = readFileSync(join(here, "migrations.sql"), "utf8");
 
 const SEED_GROUPS = [
   "621/11",
@@ -293,38 +295,56 @@ export function releaseInstance() {
   }
 }
 
-async function runRestoreCluster() {
-  const check = await verifyCluster(backupDir);
-  if (!check.ok) {
-    console.error("Резервная копия не прошла проверку. Рабочая база не изменена.");
-    return false;
-  }
+async function restoreClusterFromDir(sourceDir) {
+  const check = await verifyCluster(sourceDir);
+  if (!check.ok) return null;
+
   const parked = join(repoRoot, "data", `pgdata-parked-${Date.now()}`);
-  try {
-    renameSync(dataDir, parked);
-  } catch {
-    console.error("Не удалось отложить рабочую базу. Она не изменена.");
-    return false;
+  if (existsSync(dataDir)) {
+    try {
+      renameSync(dataDir, parked);
+    } catch {
+      return null;
+    }
   }
   try {
-    cpSync(backupDir, dataDir, { recursive: true });
+    cpSync(sourceDir, dataDir, { recursive: true });
     removeStalePid();
     const confirm = await verifyCluster(dataDir);
     if (!confirm.ok) throw new Error("restored cluster failed verify");
-    console.log(
-      `Восстановлено из проверенной копии: карточек ${check.students}, фото ${check.photos}.`
-    );
-    return true;
+    return check;
   } catch {
     rmSync(dataDir, { recursive: true, force: true });
-    try {
-      renameSync(parked, dataDir);
-    } catch {
-      /* parked copy remains beside */
+    if (existsSync(parked)) {
+      try {
+        renameSync(parked, dataDir);
+      } catch {
+        /* копия остаётся в pgdata-parked-* */
+      }
     }
-    console.error("Восстановление не удалось. Возвращена исходная база.");
+    return null;
+  }
+}
+
+async function tryRestoreBrokenCluster() {
+  for (const dir of [backupDir, backupPrevDir]) {
+    if (!existsSync(dir)) continue;
+    const restored = await restoreClusterFromDir(dir);
+    if (restored) return restored;
+  }
+  return null;
+}
+
+async function runRestoreCluster() {
+  const restored = await restoreClusterFromDir(backupDir);
+  if (!restored) {
+    console.error("Резервная копия не прошла проверку или восстановление не удалось.");
     return false;
   }
+  console.log(
+    `Восстановлено из проверенной копии: карточек ${restored.students}, фото ${restored.photos}.`
+  );
+  return true;
 }
 
 async function openPglite() {
@@ -398,12 +418,108 @@ export const pool = {
   connect: () => impl.connect(),
 };
 
+async function clusterHasStudentTable(client) {
+  try {
+    const { rows } = await client.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'student'
+      ) AS ok
+    `);
+    return Boolean(rows[0]?.ok);
+  } catch {
+    return false;
+  }
+}
+
+/** PGlite: «тип student уже есть» без таблицы — после сбойного exec всей schema.sql */
+async function repairOrphanStudentType(client) {
+  try {
+    const { rows } = await client.query(`
+      SELECT
+        EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'student'
+        ) AS has_table,
+        EXISTS (
+          SELECT 1 FROM pg_type t
+          JOIN pg_namespace n ON n.oid = t.typnamespace
+          WHERE n.nspname = 'public' AND t.typname = 'student'
+        ) AS has_type
+    `);
+    const { has_table: hasTable, has_type: hasType } = rows[0] ?? {};
+    if (!hasTable && hasType) {
+      await client.query("DROP TYPE IF EXISTS public.student CASCADE");
+    }
+  } catch (err) {
+    console.warn(
+      "Не удалось проверить тип student (база могла повредиться при прошлом запуске):",
+      err?.message || err
+    );
+  }
+}
+
+async function ensureDisciplineImposedByColumn(client) {
+  await client.query(`
+    ALTER TABLE student_discipline ADD COLUMN IF NOT EXISTS imposed_by TEXT
+  `);
+}
+
+async function applyDatabaseSchema(client) {
+  await repairOrphanStudentType(client);
+  if (await clusterHasStudentTable(client)) {
+    await client.exec(MIGRATIONS_SQL);
+    await ensureDisciplineImposedByColumn(client);
+    return;
+  }
+  try {
+    await client.exec(SCHEMA_SQL);
+    await ensureDisciplineImposedByColumn(client);
+  } catch (err) {
+    const code = err?.code ?? err?.cause?.code;
+    const msg = String(err?.message ?? err);
+    if (code === "42710" || /type "student" already exists/i.test(msg)) {
+      await repairOrphanStudentType(client);
+      await client.exec(SCHEMA_SQL);
+      await ensureDisciplineImposedByColumn(client);
+      return;
+    }
+    throw err;
+  }
+}
+
 export async function initDatabase() {
-  const lite = await openPglite();
+  let lite = await openPglite();
   impl = wrapLite(lite);
-  await impl.exec(SCHEMA_SQL);
+
+  if (!(await clusterHasStudentTable(impl))) {
+    console.log("");
+    console.log("Рабочая база повреждена (нет таблицы student).");
+    console.log("Пробую восстановить из резервной копии…");
+    console.log("");
+    await impl.close();
+    impl = null;
+    const restored = await tryRestoreBrokenCluster();
+    lite = await openPglite();
+    impl = wrapLite(lite);
+    if (restored) {
+      console.log(
+        `Восстановлено: карточек ${restored.students}, фото ${restored.photos}.`
+      );
+      console.log("");
+    } else if (!(await clusterHasStudentTable(impl))) {
+      console.warn(
+        "Резервная копия недоступна. Пробую собрать схему заново (данные могли быть утеряны)."
+      );
+      console.warn("");
+    }
+  }
+
+  await applyDatabaseSchema(impl);
   await maybeMigrateFromPostgres(impl);
   await seedReferenceData(impl);
+  await maintainPlaceCatalog(impl);
   await seedAdminUser(impl);
   await impl.query("CHECKPOINT");
   checkpointTimer = setInterval(() => {

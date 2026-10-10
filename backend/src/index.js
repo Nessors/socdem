@@ -56,6 +56,7 @@ import {
   photoUploadError,
   uploadStudentPhoto,
 } from "./photos.js";
+import { listPlaceCatalogHandler } from "./placeCatalog.js";
 
 const port = Number(process.env.PORT) || 3001;
 const host = process.env.HOST || "127.0.0.1";
@@ -273,6 +274,7 @@ app.get(
   })
 );
 
+app.get("/api/place-catalog", wrap((req, res) => listPlaceCatalogHandler(pool, req, res)));
 app.get("/api/dashboard", wrap(getDashboard));
 app.get("/api/relatives", wrap(listAllRelatives));
 app.get("/api/geography", wrap(listGeography));
@@ -292,7 +294,7 @@ app.get(
         COUNT(st.id)::int AS student_count
       FROM student_group g
       JOIN academic_stream s ON s.id = g.stream_id
-      LEFT JOIN student st ON st.group_id = g.id
+      LEFT JOIN student st ON st.group_id = g.id AND st.category = 'cadet'
       GROUP BY g.id, g.name, s.title
       ORDER BY g.name
     `);

@@ -1,182 +1,221 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import BarChart from "../components/BarChart.jsx";
-import OriginMap from "../components/OriginMap.jsx";
-import { IconHome, IconStatBuilding, IconStatUser } from "../components/NavIcons.jsx";
-import { housingLabel } from "../components/HousingPicker.jsx";
-import { IdentityCells, IdentityHeaderCells } from "../components/PersonIdentity.jsx";
-import { fullName, personSearchHay } from "../utils";
+import FioSearchField from "../components/FioSearchField.jsx";
+import PageLoader from "../components/PageLoader.jsx";
+import { IconCalendar, IconMourning, IconStatUser } from "../components/NavIcons.jsx";
+import { SOCDEM_NAV_DEFAULT, SOCDEM_NAV_GROUPS } from "../profileConfig";
+import {
+  daysUntilBirthday,
+  formatBirthdayDayMonth,
+  fullName,
+  personCategory,
+  personSearchHay,
+  toInputDate,
+} from "../utils";
+
+function birthdaysInMonth(people, monthIndex) {
+  const month = monthIndex + 1;
+  return people.filter((p) => {
+    const iso = toInputDate(p.birth_date);
+    if (!iso) return false;
+    return Number(iso.slice(5, 7)) === month;
+  }).length;
+}
 
 export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [students, setStudents] = useState([]);
-  const [groups, setGroups] = useState([]);
+  const [mourningRows, setMourningRows] = useState([]);
   const [q, setQ] = useState("");
-  const [groupFilter, setGroupFilter] = useState("");
-  const [regionFilter, setRegionFilter] = useState("");
-  const [housingFilter, setHousingFilter] = useState("");
+  const [jumpTarget, setJumpTarget] = useState(SOCDEM_NAV_DEFAULT);
 
   useEffect(() => {
-    Promise.all([api.dashboard(), api.students(), api.groups()]).then(
-      ([d, st, gr]) => {
-        setStats(d);
-        setStudents(st);
-        setGroups(gr);
-      }
-    );
+    Promise.all([api.dashboard(), api.students(), api.mourning()]).then(([d, st, mourning]) => {
+      setStats(d);
+      setStudents(st);
+      setMourningRows(mourning);
+    });
   }, []);
 
-  const regions = useMemo(() => {
-    const set = new Set();
-    students.forEach((s) => {
-      if (s.origin_region) set.add(s.origin_region);
+  const deferredQ = useDeferredValue(q.trim());
+  const roster = students.filter((s) => personCategory(s) === "cadet");
+  const searching = Boolean(deferredQ);
+
+  const filtered = useMemo(() => {
+    if (!searching) return [];
+    const needle = deferredQ.toLowerCase();
+    return roster.filter((s) => {
+      const hay = `${personSearchHay(s)} ${s.group_name ?? ""}`.toLowerCase();
+      return hay.includes(needle);
     });
-    return [...set].sort((a, b) => a.localeCompare(b, "ru"));
-  }, [students]);
+  }, [roster, searching, deferredQ]);
 
-  const deferredQ = useDeferredValue(q);
+  const monthBirthdays = useMemo(
+    () => birthdaysInMonth(roster, new Date().getMonth()),
+    [roster]
+  );
 
-  const filtered = students.filter((s) => {
-    const hay = `${personSearchHay(s)} ${s.group_name} ${s.birth_place ?? ""} ${s.residence_address ?? ""} ${housingLabel(s.housing)}`.toLowerCase();
-    if (deferredQ && !hay.includes(deferredQ.toLowerCase())) return false;
-    if (groupFilter && s.group_name !== groupFilter) return false;
-    if (regionFilter && s.origin_region !== regionFilter) return false;
-    if (housingFilter && (s.housing || "") !== housingFilter) return false;
-    return true;
-  });
+  const birthdaySpotlight = useMemo(() => {
+    const today = new Date();
+    const ranked = roster
+      .map((p) => ({
+        person: p,
+        days: daysUntilBirthday(p.birth_date, today),
+      }))
+      .filter((row) => row.days !== null)
+      .sort(
+        (a, b) =>
+          a.days - b.days || fullName(a.person).localeCompare(fullName(b.person), "ru")
+      );
+    const nearest = ranked[0];
+    if (!nearest) return null;
+    const todayList = ranked.filter((r) => r.days === 0);
+    return { nearest, todayList };
+  }, [roster]);
+  const mourningTotal = mourningRows.length;
 
-  if (!stats) return <p className="muted center">Загрузка…</p>;
+  const jumpLabel = useMemo(() => {
+    for (const group of SOCDEM_NAV_GROUPS) {
+      const hit = group.targets.find((t) => t.id === jumpTarget);
+      if (hit) return hit.label;
+    }
+    return "раздел карточки";
+  }, [jumpTarget]);
+
+  if (!stats) return <PageLoader label="Сводка главной…" />;
 
   return (
     <div className="dashboard">
-      <div className="stat-grid">
-        <article className="stat-card">
-          <div className="stat-card-head">
-            <p className="stat-label">Всего л/с</p>
-            <IconStatUser className="stat-icon-svg" />
-          </div>
-          <p className="stat-value">{stats.total}</p>
-          <p className="stat-hint">человек в базе</p>
-        </article>
-        <article className="stat-card">
-          <div className="stat-card-head">
-            <p className="stat-label">В казарме</p>
-            <IconStatBuilding className="stat-icon-svg" />
-          </div>
-          <p className="stat-value">{stats.barracks}</p>
-          <p className="stat-hint">отмечено в карточках</p>
-        </article>
-        <article className="stat-card">
-          <div className="stat-card-head">
-            <p className="stat-label">Вне казармы</p>
-            <IconHome className="stat-icon-svg" />
-          </div>
-          <p className="stat-value">{stats.off_barracks}</p>
-          <p className="stat-hint">отмечено в карточках</p>
-        </article>
-      </div>
-
-      <div className="chart-grid chart-grid-geo">
-        <section className="panel chart-panel origin-map-panel">
-          <h3>География набора</h3>
-          <p className="muted chart-sub">
-            Откуда приехали · субъекты РФ
-            {stats.geography?.length
-              ? ` · ${stats.geography.length} регионов · ${stats.total} чел.`
-              : ""}
+      <div className="stat-grid dash-stat-grid">
+        <Link to="/birthdays" className="stat-card stat-card-link stat-card--birthdays">
+          <IconCalendar className="stat-icon-svg" />
+          {birthdaySpotlight ? (
+            <>
+              <p className="stat-spotlight-kicker">
+                {birthdaySpotlight.todayList.length > 0
+                  ? "Сегодня"
+                  : birthdaySpotlight.nearest.days === 1
+                    ? "Завтра"
+                    : "Ближайший"}
+              </p>
+              <p className="stat-spotlight-name">
+                {birthdaySpotlight.todayList.length > 0
+                  ? fullName(birthdaySpotlight.todayList[0].person)
+                  : fullName(birthdaySpotlight.nearest.person)}
+              </p>
+              <p className="stat-spotlight-meta">
+                {birthdaySpotlight.todayList.length > 1
+                  ? `и ещё ${birthdaySpotlight.todayList.length - 1} сегодня`
+                  : birthdaySpotlight.todayList.length === 0
+                    ? formatBirthdayDayMonth(birthdaySpotlight.nearest.person.birth_date)
+                    : formatBirthdayDayMonth(birthdaySpotlight.todayList[0].person.birth_date)}
+              </p>
+            </>
+          ) : (
+            <p className="stat-spotlight-name stat-spotlight-name--empty">Нет дат</p>
+          )}
+          <p className="stat-label">Дни рождения</p>
+          <p className="stat-hint">
+            В этом месяце: <strong>{monthBirthdays}</strong>
           </p>
-          {stats.geography?.length ? (
-            <OriginMap
-              data={stats.geography}
-              people={students}
-              selected={regionFilter}
-              onSelect={setRegionFilter}
-            />
-          ) : (
-            <p className="muted">Нет данных — заполните место рождения в карточках.</p>
-          )}
-        </section>
-        <section className="panel chart-panel">
-          <h3>По субъектам</h3>
-          <p className="muted chart-sub">Нажмите субъект на карте или строку — появится список людей</p>
-          {stats.geography?.length ? (
-            <BarChart
-              data={stats.geography}
-              className="geo-chart"
-              selected={regionFilter}
-              onSelect={setRegionFilter}
-            />
-          ) : (
-            <p className="muted">Нет данных.</p>
-          )}
-        </section>
+        </Link>
+        <Link to="/students" className="stat-card stat-card-link">
+          <IconStatUser className="stat-icon-svg" />
+          <p className="stat-value">{stats.total}</p>
+          <p className="stat-label">Личный состав</p>
+          <p className="stat-hint">Курсанты по курсам и группам, карточки и добавление.</p>
+        </Link>
+        <Link to="/mourning" className="stat-card stat-card-link">
+          <IconMourning className="stat-icon-svg" />
+          <p className="stat-value">{mourningTotal}</p>
+          <p className="stat-label">Печальные события</p>
+          <p className="stat-hint">Утраты в семьях курсантов · даты и обстоятельства.</p>
+        </Link>
       </div>
 
-      <section className="panel table-panel">
-        <h3>Быстрый поиск и фильтрация</h3>
-        <div className="filter-bar">
-          <input
-            type="search"
-            placeholder="Поиск по ФИО, должности, званию, группе…"
+      <section className="panel dash-search-panel">
+        <header className="dash-search-head">
+          <div>
+            <p className="section-caption">Поиск</p>
+            <h3>Найти курсанта</h3>
+          </div>
+          <Link to="/students" className="btn btn-sm">
+            Весь л/с
+          </Link>
+        </header>
+
+        <div className="dash-search-toolbar">
+          <FioSearchField
+            className="dash-field-grow"
+            grow
+            wide
+            label="Кого ищем"
+            placeholder="Фамилия, имя, телефон, группа…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)}>
-            <option value="">Группа</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.name}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-          <select value={regionFilter} onChange={(e) => setRegionFilter(e.target.value)}>
-            <option value="">Регион</option>
-            {regions.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          <select value={housingFilter} onChange={(e) => setHousingFilter(e.target.value)}>
-            <option value="">Проживание</option>
-            <option value="barracks">В казарме</option>
-            <option value="off_barracks">Вне казармы</option>
-          </select>
-        </div>
-        <div className="table-wrap dark-table">
-          <table>
-            <thead>
-              <tr>
-                <IdentityHeaderCells />
-                <th>ФИО</th>
-                <th>Группа</th>
-                <th>Регион (откуда)</th>
-                <th>Проживание</th>
-                <th>Телефон</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.slice(0, 12).map((s) => (
-                <tr key={s.id}>
-                  <IdentityCells person={s} />
-                  <td>
-                    <Link to={`/students/${s.id}`}>{fullName(s)}</Link>
-                  </td>
-                  <td>
-                    <Link to={`/groups/${s.group_id}`}>{s.group_name}</Link>
-                  </td>
-                  <td>{s.origin_region || "—"}</td>
-                  <td>{housingLabel(s.housing)}</td>
-                  <td>{s.phone}</td>
-                </tr>
+
+          <label className="dash-field dash-field-target">
+            <span className="dash-field-label">Раздел соцдема</span>
+            <select
+              className="dash-search-select"
+              value={jumpTarget}
+              onChange={(e) => setJumpTarget(e.target.value)}
+              aria-label="Куда перейти в карточке"
+            >
+              {SOCDEM_NAV_GROUPS.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.targets.map((target) => (
+                    <option key={target.id} value={target.id}>
+                      {target.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
-            </tbody>
-          </table>
+            </select>
+          </label>
         </div>
-        <Link to="/students" className="link-more">
-          Весь личный состав →
-        </Link>
+
+        <div className="dash-search-results">
+          {!searching ? (
+            <p className="muted dash-search-idle">
+              Начните ввод — появятся фамилии для перехода в карточку.
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="dash-hits-empty muted">Никого не найдено по этому запросу.</p>
+          ) : (
+            <>
+              <p className="dash-results-meta">
+                Найдено {filtered.length} {filtered.length === 1 ? "человек" : "чел."}
+                <span className="muted"> · переход: «{jumpLabel}»</span>
+              </p>
+              <ul className="dash-hits" aria-label="Найденные люди">
+                {filtered.map((s) => (
+                  <li key={s.id}>
+                    <Link
+                      to={`/students/${s.id}#${jumpTarget}`}
+                      state={{ returnTo: { pathname: "/", label: "На главную" } }}
+                      className="dash-hit"
+                      title={`Открыть: ${jumpLabel}`}
+                    >
+                      <span className="dash-hit-name">
+                        <strong className="dash-hit-surname">{s.last_name}</strong>
+                        <span className="dash-hit-given">
+                          {[s.first_name, s.patronymic].filter(Boolean).join(" ")}
+                        </span>
+                      </span>
+                      <span className="dash-hit-meta muted">
+                        {s.group_name || "—"}
+                        {s.phone ? ` · ${s.phone}` : ""}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       </section>
     </div>
   );

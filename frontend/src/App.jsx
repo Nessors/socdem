@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { matchPath, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  matchPath,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import FacultyPage from "./pages/FacultyPage.jsx";
 import GroupsPage from "./pages/GroupsPage.jsx";
@@ -9,26 +17,39 @@ import RelativesPage from "./pages/RelativesPage.jsx";
 import GeographyPage from "./pages/GeographyPage.jsx";
 import MourningPage from "./pages/MourningPage.jsx";
 import DisciplinePage from "./pages/DisciplinePage.jsx";
+import BirthdaysPage from "./pages/BirthdaysPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import ChangePasswordPage from "./pages/ChangePasswordPage.jsx";
 import { api } from "./api.js";
 
-import gerb from "./assets/gerb.png";
-import BrandLockup from "./components/BrandLockup.jsx";
+import ParadeBanner from "./components/ParadeBanner.jsx";
+import PageLoader from "./components/PageLoader.jsx";
+import { ConfirmProvider, useConfirm } from "./components/ConfirmDialog.jsx";
 import { NavIcon } from "./components/NavIcons.jsx";
 
-const NAV = [
-  { to: "/", label: "Главная", icon: "home", end: true },
-  { to: "/students", label: "Личный состав", icon: "users" },
-  { to: "/relatives", label: "Родственники", icon: "family" },
-  { to: "/geography", label: "География и жильё", icon: "map" },
-  { to: "/mourning", label: "Печальные события", icon: "mourning" },
-  { to: "/discipline", label: "Дисциплинарная практика", icon: "discipline" },
-];
-
-const REF_NAV = [
-  { to: "/groups", label: "Группы потока" },
-  { to: "/faculty", label: "Факультет" },
+const NAV_GROUPS = [
+  {
+    label: "Обзор",
+    items: [{ to: "/", label: "Главная", icon: "home", end: true }],
+  },
+  {
+    label: "Состав",
+    items: [
+      { to: "/students", label: "Личный состав", icon: "users" },
+      { to: "/officers", label: "Офицеры", icon: "officer" },
+      { to: "/civilians", label: "Гражданский персонал", icon: "civilian" },
+    ],
+  },
+  {
+    label: "Учёт",
+    items: [
+      { to: "/relatives", label: "Родственники", icon: "family" },
+      { to: "/birthdays", label: "Дни рождения", icon: "calendar" },
+      { to: "/geography", label: "География и жильё", icon: "map" },
+      { to: "/mourning", label: "Печальные события", icon: "mourning" },
+      { to: "/discipline", label: "Дисциплинарная практика", icon: "discipline" },
+    ],
+  },
 ];
 
 const PAGE_META = [
@@ -36,7 +57,25 @@ const PAGE_META = [
     path: "/",
     kicker: "Обзор",
     title: "Главная",
-    hint: "Сводка по личному составу Факультета",
+    hint: "",
+  },
+  {
+    path: "/students/new",
+    kicker: "Учёт",
+    title: "Добавить человека",
+    hint: "Новая карточка личного состава",
+  },
+  {
+    path: "/officers/new",
+    kicker: "Учёт",
+    title: "Добавить офицера",
+    hint: "Новая карточка офицера",
+  },
+  {
+    path: "/civilians/new",
+    kicker: "Учёт",
+    title: "Добавить сотрудника",
+    hint: "Новая карточка гражданского персонала",
   },
   {
     path: "/students/:id",
@@ -48,13 +87,31 @@ const PAGE_META = [
     path: "/students",
     kicker: "Учёт",
     title: "Личный состав",
-    hint: "Список, карточки и загрузка соцдемов",
+    hint: "Список и карточки личного состава",
+  },
+  {
+    path: "/officers",
+    kicker: "Учёт",
+    title: "Офицеры",
+    hint: "Офицерский состав факультета",
+  },
+  {
+    path: "/civilians",
+    kicker: "Учёт",
+    title: "Гражданский персонал",
+    hint: "Гражданские сотрудники факультета",
   },
   {
     path: "/relatives",
     kicker: "Связи",
     title: "Родственники",
     hint: "Контакты семей курсантов",
+  },
+  {
+    path: "/birthdays",
+    kicker: "Календарь",
+    title: "Дни рождения",
+    hint: "Ближайшие дни рождения личного состава",
   },
   {
     path: "/geography",
@@ -76,21 +133,27 @@ const PAGE_META = [
   },
   {
     path: "/groups/:id",
-    kicker: "Справочник",
+    kicker: "Состав",
     title: "Группы потока",
     hint: "Состав выбранной учебной группы",
   },
   {
     path: "/groups",
-    kicker: "Справочник",
+    kicker: "Состав",
     title: "Группы потока",
     hint: "Выберите группу, чтобы увидеть обучающихся",
   },
   {
+    path: "/faculty/:course",
+    kicker: "Состав",
+    title: "Курс факультета",
+    hint: "Личный состав выбранного курса",
+  },
+  {
     path: "/faculty",
-    kicker: "Справочник",
-    title: "Факультет",
-    hint: "Сведения о факультете и потоке",
+    kicker: "Состав",
+    title: "Курс факультета",
+    hint: "Выберите курс, чтобы увидеть его личный состав",
   },
 ];
 
@@ -105,55 +168,97 @@ function usePageMeta() {
   );
 }
 
-function AppShell({ user, onLogout, onShutdown, onChangePassword }) {
+/** Кнопка «назад» в шапке: справа, на всех экранах кроме главной. */
+function useTopbarBack(location) {
+  const { pathname } = location;
+  const returnTo = location.state?.returnTo;
+  if (pathname === "/") return null;
+
+  if (returnTo?.pathname) {
+    return { to: returnTo.pathname, label: returnTo.label ?? "Назад" };
+  }
+
+  if (matchPath({ path: "/students/new", end: true }, pathname)) {
+    return { to: "/students", label: "К списку" };
+  }
+  if (matchPath({ path: "/officers/new", end: true }, pathname)) {
+    return { to: "/officers", label: "К списку" };
+  }
+  if (matchPath({ path: "/civilians/new", end: true }, pathname)) {
+    return { to: "/civilians", label: "К списку" };
+  }
+  if (matchPath({ path: "/students/:id", end: true }, pathname)) {
+    return { to: "/", label: "На главную" };
+  }
+  if (matchPath({ path: "/groups/:id", end: true }, pathname)) {
+    return { to: "/groups", label: "К группам" };
+  }
+  if (matchPath({ path: "/faculty/:course", end: true }, pathname)) {
+    return { to: "/faculty", label: "К курсам" };
+  }
+
+  return { to: "/", label: "На главную" };
+}
+
+function AppShell({ onStopped }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const page = usePageMeta();
+  const topbarBack = useTopbarBack(location);
+  const ask = useConfirm();
+  const [navOpen, setNavOpen] = useState(true);
+
+  function openSection(path) {
+    setNavOpen(false);
+    if (path) navigate(path);
+  }
+
+  async function shutdownApp() {
+    const ok = await ask({
+      title: "Сохранить и выключить?",
+      message:
+        "Все изменения будут записаны на диск.\nПосле этого можно закрыть браузер и чёрное окно сервера.",
+      confirmLabel: "Сохранить и выключить",
+      cancelLabel: "Остаться в базе",
+      confirmTone: "primary",
+    });
+    if (!ok) return;
+    try {
+      await api.shutdown();
+    } catch {
+      /* сервер гасится сразу после ответа */
+    }
+    onStopped();
+  }
 
   return (
-    <div className="app-frame">
+    <div className={navOpen ? "app-frame" : "app-frame nav-collapsed"}>
       <a className="skip-link" href="#content">
         К содержимому
       </a>
+      <div className="app-parade">
+        <ParadeBanner />
+      </div>
       <aside className="app-sidebar">
-        <div className="brand">
-          <div className="brand-mark">
-            <img
-              className="brand-emblem"
-              src={gerb}
-              alt=""
-              width={88}
-              height={106}
-            />
-          </div>
-          <BrandLockup />
-        </div>
-
         <nav className="side-nav" aria-label="Основное меню">
-          <p className="nav-label">Разделы</p>
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                isActive ? "side-link active" : "side-link"
-              }
-            >
-              <NavIcon name={item.icon} />
-              {item.label}
-            </NavLink>
-          ))}
-          <p className="nav-label">Справочник</p>
-          {REF_NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                isActive ? "side-link active" : "side-link"
-              }
-            >
-              {item.label}
-            </NavLink>
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="nav-group">
+              <p className="nav-label">{group.label}</p>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  onClick={() => setNavOpen(false)}
+                  className={({ isActive }) =>
+                    isActive ? "side-link active" : "side-link"
+                  }
+                >
+                  <NavIcon name={item.icon} />
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -161,24 +266,11 @@ function AppShell({ user, onLogout, onShutdown, onChangePassword }) {
           <button
             type="button"
             className="side-btn"
-            onClick={() => navigate("/students")}
+            onClick={() => openSection("/students/new")}
           >
             Добавить человека
           </button>
-          <button
-            type="button"
-            className="side-btn"
-            onClick={() => navigate("/students")}
-          >
-            Импорт соцдемов
-          </button>
-          <button type="button" className="side-btn" onClick={onChangePassword}>
-            Сменить пароль
-          </button>
-          <button type="button" className="side-btn" onClick={onLogout}>
-            Выйти{user?.username ? ` (${user.username})` : ""}
-          </button>
-          <button type="button" className="side-btn" onClick={onShutdown}>
+          <button type="button" className="side-btn" onClick={shutdownApp}>
             Сохранить и выключить
           </button>
           <p className="brand-ver">Правки сохраняются сами</p>
@@ -187,29 +279,46 @@ function AppShell({ user, onLogout, onShutdown, onChangePassword }) {
 
       <div className="app-workspace">
         <header className="topbar">
-          <div>
-            <p className="topbar-kicker">{page.kicker}</p>
-            <h1>{page.title}</h1>
-            {page.hint ? <p className="topbar-hint">{page.hint}</p> : null}
+          <div className="topbar-lead">
+            <div className="topbar-toolbar">
+              <button
+                type="button"
+                className="nav-toggle"
+                aria-expanded={navOpen}
+                onClick={() => setNavOpen((open) => !open)}
+              >
+                {navOpen ? "Скрыть меню" : "Меню"}
+              </button>
+            </div>
+            <div>
+              <p className="topbar-kicker">{page.kicker}</p>
+              <h1>{page.title}</h1>
+              {page.hint ? <p className="topbar-hint">{page.hint}</p> : null}
+            </div>
           </div>
-          <div className="topbar-meta">
-            <span className="topbar-pill">
-              {user?.display_name || user?.username || "admin"}
-            </span>
-            <span className="topbar-local">Только этот компьютер</span>
-          </div>
+          {topbarBack ? (
+            <Link to={topbarBack.to} className="topbar-back topbar-back--end">
+              ← {topbarBack.label}
+            </Link>
+          ) : null}
         </header>
         <main id="content" className="app-main">
-          <Routes>
+          <Routes location={location} key={location.pathname}>
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/students" element={<StudentsPage />} />
+            <Route path="/students/new" element={<StudentsPage category="cadet" creating />} />
+            <Route path="/officers/new" element={<StudentsPage key="officer-new" category="officer" creating />} />
+            <Route path="/civilians/new" element={<StudentsPage key="civilian-new" category="civilian" creating />} />
+            <Route path="/students" element={<StudentsPage category="cadet" />} />
+            <Route path="/officers" element={<StudentsPage key="officer" category="officer" />} />
+            <Route path="/civilians" element={<StudentsPage key="civilian" category="civilian" />} />
             <Route path="/students/:id" element={<StudentCardPage />} />
             <Route path="/relatives" element={<RelativesPage />} />
+            <Route path="/birthdays" element={<BirthdaysPage />} />
             <Route path="/geography" element={<GeographyPage />} />
             <Route path="/mourning" element={<MourningPage />} />
             <Route path="/discipline" element={<DisciplinePage />} />
             <Route path="/groups/:id?" element={<GroupsPage />} />
-            <Route path="/faculty" element={<FacultyPage />} />
+            <Route path="/faculty/:course?" element={<FacultyPage />} />
           </Routes>
         </main>
       </div>
@@ -220,8 +329,6 @@ function AppShell({ user, onLogout, onShutdown, onChangePassword }) {
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [stopped, setStopped] = useState(false);
-  const [changingPassword, setChangingPassword] = useState(false);
-
   useEffect(() => {
     let cancelled = false;
     api
@@ -245,28 +352,6 @@ export default function App() {
     };
   }, []);
 
-  async function logout() {
-    try {
-      await api.logout();
-    } catch {
-      /* cookie всё равно сбросим на сервере при следующем входе */
-    }
-    setUser(null);
-  }
-
-  async function shutdownApp() {
-    const ok = window.confirm(
-      "Сохранить все изменения и выключить базу?\nПосле этого браузер и чёрное окно можно закрыть."
-    );
-    if (!ok) return;
-    try {
-      await api.shutdown();
-    } catch {
-      /* сервер гасится сразу после ответа */
-    }
-    setStopped(true);
-  }
-
   if (stopped) {
     return (
       <div className="login-screen login-screen--simple">
@@ -285,7 +370,7 @@ export default function App() {
   if (user === undefined) {
     return (
       <div className="login-screen login-screen--simple">
-        <p className="muted">Загрузка…</p>
+        <PageLoader label="Подключение к базе…" />
       </div>
     );
   }
@@ -294,27 +379,18 @@ export default function App() {
     return <LoginPage onLogin={setUser} />;
   }
 
-  if (user.must_change || changingPassword) {
+  if (user.must_change) {
     return (
       <ChangePasswordPage
-        forced={Boolean(user.must_change)}
-        onDone={(next) => {
-          setUser(next);
-          setChangingPassword(false);
-        }}
-        onCancel={
-          user.must_change ? undefined : () => setChangingPassword(false)
-        }
+        forced
+        onDone={(next) => setUser(next)}
       />
     );
   }
 
   return (
-    <AppShell
-      user={user}
-      onLogout={logout}
-      onShutdown={shutdownApp}
-      onChangePassword={() => setChangingPassword(true)}
-    />
+    <ConfirmProvider>
+      <AppShell onStopped={() => setStopped(true)} />
+    </ConfirmProvider>
   );
 }

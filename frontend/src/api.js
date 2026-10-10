@@ -67,6 +67,13 @@ export const api = {
   faculty: () => request("/api/faculty"),
   groups: () => request("/api/groups"),
   students: () => request("/api/students"),
+  placeCatalog: (params) => {
+    const q = new URLSearchParams();
+    if (params?.kind) q.set("kind", params.kind);
+    if (params?.q) q.set("q", params.q);
+    const suffix = q.toString() ? `?${q}` : "";
+    return request(`/api/place-catalog${suffix}`);
+  },
   dashboard: () => request("/api/dashboard"),
   relatives: () => request("/api/relatives"),
   geography: () => request("/api/geography"),
@@ -136,10 +143,11 @@ export const api = {
     return data;
   },
   /** groupId не обязателен — сервер определит группу по специальности и году набора */
-  importNewStudentDocx: async (file, groupId) => {
+  importNewStudentDocx: async (file, { groupId, category } = {}) => {
     const form = new FormData();
     form.append("docx", file);
     if (groupId != null && groupId !== "") form.append("group_id", String(groupId));
+    if (category && category !== "cadet") form.append("category", category);
     const res = await fetch("/api/students/import.docx", {
       method: "POST",
       body: form,

@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
+import { useConfirm } from "../components/ConfirmDialog.jsx";
+import FioSearchField from "../components/FioSearchField.jsx";
+import PageLoader from "../components/PageLoader.jsx";
 import { IdentityLine } from "../components/PersonIdentity.jsx";
-import { formatDate, fullName, personSearchHay } from "../utils";
+import {
+  DISCIPLINE_AUTHORITIES,
+  authoritiesAllowedToLiftPenalty,
+  canLiftPenaltyWithCommendation,
+  disciplineAuthorityLabel,
+  liftPenaltyRuleHint,
+} from "../../../disciplineAuthorities.js";
+import { formatDate, fullName, personCategory, personSearchHay } from "../utils";
 
 const KINDS = [
   {
@@ -45,6 +55,7 @@ function recordsWord(n) {
 }
 
 export default function DisciplinePage() {
+  const ask = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("student") || "";
 
@@ -53,8 +64,9 @@ export default function DisciplinePage() {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("");
   const [reason, setReason] = useState("");
+  const [imposedBy, setImposedBy] = useState("");
   const [issuedAt, setIssuedAt] = useState(todayInput);
-  const [closeOn, setCloseOn] = useState(true);
+  const [closeOn, setCloseOn] = useState(false);
   const [closeId, setCloseId] = useState("latest");
   const [filter, setFilter] = useState("all");
   const [saving, setSaving] = useState(false);
@@ -84,21 +96,60 @@ export default function DisciplinePage() {
       .sort((a, b) => String(b.issued_at).localeCompare(String(a.issued_at)));
   }, [rows, selected]);
 
-  useEffect(() => {
-    if (openPenalties[0]) setCloseId("latest");
-  }, [selectedId, openPenalties.length]);
+  const liftableOpenPenalties = useMemo(
+    () => openPenalties.filter((p) => p.imposed_by),
+    [openPenalties]
+  );
+
+  const penaltyToClose = useMemo(() => {
+    if (kind !== "commendation" || !closeOn || liftableOpenPenalties.length === 0) {
+      return null;
+    }
+    if (closeId === "latest") return liftableOpenPenalties[0];
+    return (
+      liftableOpenPenalties.find((p) => String(p.id) === String(closeId)) ??
+      liftableOpenPenalties[0]
+    );
+  }, [kind, closeOn, closeId, liftableOpenPenalties]);
+
+  const authorityOptions = useMemo(() => {
+    if (!kind) return [];
+    if (isPenalty(kind)) return DISCIPLINE_AUTHORITIES;
+    if (kind === "commendation" && closeOn && penaltyToClose?.imposed_by) {
+      const allowed = new Set(authoritiesAllowedToLiftPenalty(penaltyToClose.imposed_by));
+      return DISCIPLINE_AUTHORITIES.filter((a) => allowed.has(a.id));
+    }
+    return DISCIPLINE_AUTHORITIES;
+  }, [kind, closeOn, penaltyToClose]);
 
   useEffect(() => {
-    if (selected) {
-      setQuery((q) => q || fullName(selected));
+    if (liftableOpenPenalties[0]) setCloseId("latest");
+    else if (closeOn && liftableOpenPenalties.length === 0) setCloseOn(false);
+  }, [selectedId, liftableOpenPenalties.length, closeOn]);
+
+  useEffect(() => {
+    if (!imposedBy) return;
+    if (!authorityOptions.some((a) => a.id === imposedBy)) {
+      setImposedBy("");
     }
-  }, [selected]);
+  }, [authorityOptions, imposedBy]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setQuery("");
+      return;
+    }
+    if (selected) {
+      setQuery((q) => (q.trim() ? q : fullName(selected)));
+    }
+  }, [selectedId, selected]);
 
   const found = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return students
       .filter((s) => {
+        if (personCategory(s) !== "cadet") return false;
         const hay = `${personSearchHay(s)} ${s.group_name ?? ""}`.toLowerCase();
         return hay.includes(q);
       })
@@ -121,6 +172,17 @@ export default function DisciplinePage() {
     setError("");
   };
 
+  const clearStudentSelection = () => {
+    setSearchParams({});
+    setQuery("");
+    setKind("");
+    setReason("");
+    setIssuedAt(todayInput());
+    setCloseOn(false);
+    setImposedBy("");
+    setError("");
+  };
+
   const handleKind = (id) => {
     setKind((cur) => (cur === id ? "" : id));
   };
@@ -135,6 +197,24 @@ export default function DisciplinePage() {
       setError("Отметьте меру: благодарность, выговор или строгий выговор.");
       return;
     }
+    if (!imposedBy) {
+      setError(
+        kind === "commendation"
+          ? "Укажите, кем объявлена благодарность."
+          : "Укажите, кем наложено взыскание."
+      );
+      return;
+    }
+    if (kind === "commendation" && closeOn && penaltyToClose) {
+      if (!penaltyToClose.imposed_by) {
+        setError(liftPenaltyRuleHint(null));
+        return;
+      }
+      if (!canLiftPenaltyWithCommendation(imposedBy, penaltyToClose.imposed_by)) {
+        setError(liftPenaltyRuleHint(penaltyToClose.imposed_by));
+        return;
+      }
+    }
     setSaving(true);
     setError("");
     try {
@@ -143,14 +223,13 @@ export default function DisciplinePage() {
         kind,
         issued_at: issuedAt || todayInput(),
         reason,
+        imposed_by: imposedBy,
       };
-      if (kind === "commendation" && closeOn && openPenalties.length) {
-        body.close_penalty_id = closeId === "latest" ? "latest" : Number(closeId);
+      if (kind === "commendation" && closeOn && penaltyToClose) {
+        body.close_penalty_id = penaltyToClose.id;
       }
       await api.createDiscipline(body);
-      setReason("");
-      setKind("");
-      setIssuedAt(todayInput());
+      clearStudentSelection();
       await reload();
     } catch (err) {
       setError(err.message);
@@ -161,14 +240,16 @@ export default function DisciplinePage() {
 
   const handleDelete = async (row) => {
     const label = KIND_LABEL[row.kind] ?? row.kind;
-    if (!confirm(`Удалить запись «${label}» от ${formatDate(row.issued_at)}?`)) {
-      return;
-    }
+    const ok = await ask({
+      title: "Удалить запись?",
+      message: `Запись «${label}» от ${formatDate(row.issued_at)} будет удалена из учёта.`,
+    });
+    if (!ok) return;
     await api.deleteDiscipline(row.id);
     await reload();
   };
 
-  if (loading) return <p className="muted">Загрузка учёта…</p>;
+  if (loading) return <PageLoader label="Загрузка учёта…" />;
 
   return (
     <div className="disc-page">
@@ -179,17 +260,13 @@ export default function DisciplinePage() {
           можно снять ранее наложенный выговор или строгий выговор.
         </p>
 
-        <label className="disc-search-label">
-          Поиск по ФИО или группе
-          <input
-            type="search"
-            className="search-wide"
-            placeholder="Начните вводить фамилию…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoComplete="off"
-          />
-        </label>
+        <FioSearchField
+          wide
+          label="Поиск по ФИО или группе"
+          placeholder="Фамилия, имя, группа…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
 
         <ul className="disc-hits" role="listbox" aria-label="Найденные курсанты">
           {found.map((s) => (
@@ -229,10 +306,12 @@ export default function DisciplinePage() {
               <p className="disc-open-note">
                 Действующие взыскания:{" "}
                 {openPenalties
-                  .map(
-                    (p) =>
-                      `${KIND_LABEL[p.kind]} от ${formatDate(p.issued_at)}`
-                  )
+                  .map((p) => {
+                    const by = disciplineAuthorityLabel(p.imposed_by);
+                    return `${KIND_LABEL[p.kind]} от ${formatDate(p.issued_at)}${
+                      by ? ` (${by})` : ""
+                    }`;
+                  })
                   .join("; ")}
               </p>
             )}
@@ -259,7 +338,46 @@ export default function DisciplinePage() {
               ))}
             </fieldset>
 
-            {kind === "commendation" && openPenalties.length > 0 && (
+            {kind ? (
+              <label className="disc-imposed-by disc-imposed-by--primary">
+                {kind === "commendation" ? "Кем объявлена *" : "Кем наложено *"}
+                {imposedBy ? (
+                  <p className="disc-imposed-preview">
+                    Запишется: {disciplineAuthorityLabel(imposedBy)}
+                  </p>
+                ) : (
+                  <p className="disc-imposed-by-hint muted">
+                    {isPenalty(kind)
+                      ? "Обязательно выберите должность — она попадёт в журнал."
+                      : "Выберите, кем объявлена благодарность."}
+                  </p>
+                )}
+                <select
+                  value={imposedBy}
+                  onChange={(e) => setImposedBy(e.target.value)}
+                  required
+                >
+                  <option value="">— выберите должность —</option>
+                  {authorityOptions.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            {kind === "commendation" &&
+            openPenalties.length > 0 &&
+            liftableOpenPenalties.length === 0 ? (
+              <p className="form-error disc-close-warn">
+                Действующие выговоры без должности «кем наложено» — снять их благодарностью
+                нельзя. Удалите их в журнале и внесите заново с должностью. Обычную
+                благодарность можно внести ниже.
+              </p>
+            ) : null}
+
+            {kind === "commendation" && liftableOpenPenalties.length > 0 && (
               <div className="disc-close-box">
                 <label className="disc-kind is-on">
                   <input
@@ -275,13 +393,18 @@ export default function DisciplinePage() {
                   <label>
                     Какое взыскание снять
                     <select
-                      value={closeId}
+                      value={
+                        liftableOpenPenalties.some((p) => String(p.id) === String(closeId))
+                          ? closeId
+                          : "latest"
+                      }
                       onChange={(e) => setCloseId(e.target.value)}
                     >
-                      <option value="latest">Последнее действующее</option>
-                      {openPenalties.map((p) => (
+                      <option value="latest">Последнее (с указанной должностью)</option>
+                      {liftableOpenPenalties.map((p) => (
                         <option key={p.id} value={p.id}>
                           {KIND_LABEL[p.kind]} от {formatDate(p.issued_at)}
+                          {` · ${disciplineAuthorityLabel(p.imposed_by)}`}
                           {p.reason ? ` — ${p.reason}` : ""}
                         </option>
                       ))}
@@ -290,6 +413,12 @@ export default function DisciplinePage() {
                 )}
               </div>
             )}
+
+            {kind === "commendation" && closeOn && penaltyToClose?.imposed_by ? (
+              <p className="disc-imposed-by-hint muted disc-lift-hint">
+                {liftPenaltyRuleHint(penaltyToClose.imposed_by)}
+              </p>
+            ) : null}
 
             <div className="form-grid">
               <label>
@@ -346,6 +475,7 @@ export default function DisciplinePage() {
                 <th>Курсант</th>
                 <th>Группа</th>
                 <th>Мера</th>
+                <th>Кем наложено / объявлено</th>
                 <th>Статус</th>
                 <th>Основание</th>
                 <th />
@@ -370,6 +500,15 @@ export default function DisciplinePage() {
                   </td>
                   <td>
                     {isPenalty(r.kind) ? (
+                      disciplineAuthorityLabel(r.imposed_by) || (
+                        <span className="disc-missing-authority">не указано</span>
+                      )
+                    ) : (
+                      disciplineAuthorityLabel(r.imposed_by) || "—"
+                    )}
+                  </td>
+                  <td>
+                    {isPenalty(r.kind) ? (
                       r.closed_at ? (
                         <span className="muted">
                           Снят {formatDate(r.closed_at || r.lifted_at)}
@@ -379,10 +518,17 @@ export default function DisciplinePage() {
                       )
                     ) : r.closes_id ? (
                       <span className="muted">
-                        Снял {KIND_LABEL[r.closed_kind] ?? "взыскание"}
+                        Сняло {KIND_LABEL[r.closed_kind] ?? "взыскание"}
                         {r.closed_issued_at
                           ? ` от ${formatDate(r.closed_issued_at)}`
                           : ""}
+                        {r.closed_penalty_imposed_by ? (
+                          <>
+                            {" "}
+                            (наложено:{" "}
+                            {disciplineAuthorityLabel(r.closed_penalty_imposed_by)})
+                          </>
+                        ) : null}
                       </span>
                     ) : (
                       "—"

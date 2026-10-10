@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, photoUrl } from "../api";
+import { useConfirm } from "./ConfirmDialog.jsx";
 
 export default function PhotoSlots({
   studentId,
@@ -9,6 +10,7 @@ export default function PhotoSlots({
   draftFiles,
   onDraftChange,
 }) {
+  const ask = useConfirm();
   const [cache, setCache] = useState(0);
 
   useEffect(() => {
@@ -34,7 +36,12 @@ export default function PhotoSlots({
     }
   };
 
-  const remove = async (slot) => {
+  const remove = async (slot, label) => {
+    const ok = await ask({
+      title: "Удалить фото?",
+      message: `Фото «${label}» будет удалено.`,
+    });
+    if (!ok) return;
     if (studentId) {
       await api.deletePhoto(studentId, slot);
       bump();
@@ -50,17 +57,45 @@ export default function PhotoSlots({
 
   return (
     <div className="photo-slots">
-      {slots.map(({ slot, label, kind, has, draft }) => {
-        const src = studentId
-          ? has
-            ? `${photoUrl(studentId, slot)}&v=${cache}`
-            : null
-          : draft
-            ? URL.createObjectURL(draft)
-            : null;
+      {slots.map(({ slot, label, kind, has, draft }) => (
+          <PhotoSlot
+            key={slot}
+            slot={slot}
+            label={label}
+            kind={kind}
+            studentId={studentId}
+            has={has}
+            draft={draft}
+            cache={cache}
+            onUpload={upload}
+            onRemove={remove}
+          />
+        ))}
+    </div>
+  );
+}
 
-        return (
-          <div key={slot} className={`photo-slot photo-slot-${kind}`}>
+function PhotoSlot({ slot, label, kind, studentId, has, draft, cache, onUpload, onRemove }) {
+  const [preview, setPreview] = useState(null);
+
+  useEffect(() => {
+    if (studentId || !draft) {
+      setPreview(null);
+      return undefined;
+    }
+    const url = URL.createObjectURL(draft);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [studentId, draft]);
+
+  const src = studentId
+    ? has
+      ? `${photoUrl(studentId, slot)}&v=${cache}`
+      : null
+    : preview;
+
+  return (
+          <div className={`photo-slot photo-slot-${kind}`}>
             <p className="photo-label">{label}</p>
             <div className="photo-preview">
               {src ? (
@@ -77,7 +112,7 @@ export default function PhotoSlots({
                 hidden
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  upload(slot, f);
+                  onUpload(slot, f);
                   e.target.value = "";
                 }}
               />
@@ -86,14 +121,11 @@ export default function PhotoSlots({
               <button
                 type="button"
                 className="btn btn-sm danger"
-                onClick={() => remove(slot)}
+                onClick={() => onRemove(slot, label)}
               >
                 Удалить
               </button>
             )}
           </div>
-        );
-      })}
-    </div>
   );
 }

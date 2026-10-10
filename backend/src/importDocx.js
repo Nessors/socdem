@@ -2,6 +2,7 @@ import multer from "multer";
 import { pool } from "./db.js";
 import { parseSocdemDocxBuffer } from "./parseSocdemDocx.js";
 import { resolveGroup } from "./groupResolver.js";
+import { registerProfilePlaces } from "./placeCatalog.js";
 import { getStudentFull, PROFILE_TEXT_COLUMNS } from "./students.js";
 
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -87,6 +88,7 @@ async function updateStudentFromParsed(client, studentId, parsed) {
       `UPDATE student SET ${sets} WHERE id = $${keys.length + 1}`,
       [...keys.map((k) => patch[k]), studentId]
     );
+    await registerProfilePlaces(patch, client);
   }
   return existing;
 }
@@ -244,13 +246,20 @@ function titleCaseIfUpper(s) {
     .replace(/(^|[\s\-(])(\p{L})/gu, (_, pre, ch) => pre + ch.toUpperCase());
 }
 
-async function findExistingStudent(parsed) {
+function importCategory(body) {
+  const c = String(body?.category ?? "cadet").trim();
+  if (c === "officer" || c === "civilian") return c;
+  return "cadet";
+}
+
+async function findExistingStudent(parsed, category = "cadet") {
   const { rows } = await pool.query(
-    `SELECT id, group_id FROM student
+    `SELECT id, group_id, category FROM student
      WHERE lower(last_name) = lower($1)
        AND lower(first_name) = lower($2)
        AND coalesce(lower(patronymic), '') = coalesce(lower($3), '')
        AND birth_date = $4
+       AND category = $5
      ORDER BY id
      LIMIT 1`,
     [
@@ -258,6 +267,7 @@ async function findExistingStudent(parsed) {
       parsed.fio.first_name,
       parsed.fio.patronymic ?? null,
       parsed.birth.birth_date,
+      category,
     ]
   );
   return rows[0] ?? null;
@@ -316,30 +326,35 @@ export async function importNewStudentDocx(req, res) {
     return;
   }
 
+  const category = importCategory(req.body);
+  const isCadet = category === "cadet";
+
   const { rows: groups } = await pool.query(
     "SELECT id, name FROM student_group ORDER BY name"
   );
 
-  // Группа: указана вручную → иначе определяем по специальности и году набора
-  let groupId = await resolveGroupId(req.body?.group_id ?? req.body?.group_name);
-  let resolution;
-  if (groupId) {
-    const g = groups.find((x) => x.id === groupId);
-    resolution = {
-      group: g,
-      candidates: [g],
-      confidence: "manual",
-      reason: "группа выбрана вручную",
-    };
-  } else {
-    resolution = resolveGroup(parsed, groups);
-    groupId = resolution.group?.id ?? null;
+  let groupId = null;
+  let resolution = null;
+
+  if (isCadet) {
+    groupId = await resolveGroupId(req.body?.group_id ?? req.body?.group_name);
+    if (groupId) {
+      const g = groups.find((x) => x.id === groupId);
+      resolution = {
+        group: g,
+        candidates: [g],
+        confidence: "manual",
+        reason: "группа выбрана вручную",
+      };
+    } else {
+      resolution = resolveGroup(parsed, groups);
+      groupId = resolution.group?.id ?? null;
+    }
   }
 
-  // Повторная загрузка того же человека — обновляем, а не дублируем
-  const existing = await findExistingStudent(parsed);
+  const existing = await findExistingStudent(parsed, category);
 
-  if (!groupId && !existing) {
+  if (isCadet && !groupId && !existing) {
     res.status(400).json({
       error: `Не удалось определить учебную группу: ${resolution.reason}. Выберите группу вручную.`,
       group_resolution: resolutionPayload(resolution),
@@ -364,7 +379,12 @@ export async function importNewStudentDocx(req, res) {
       studentId = existing.id;
       action = "updated";
       // Группу у уже существующей записи меняем только если она указана вручную
-      if (resolution.confidence === "manual" && groupId && groupId !== existing.group_id) {
+      if (
+        isCadet &&
+        resolution?.confidence === "manual" &&
+        groupId &&
+        groupId !== existing.group_id
+      ) {
         await client.query("UPDATE student SET group_id = $1 WHERE id = $2", [
           groupId,
           studentId,
@@ -375,11 +395,12 @@ export async function importNewStudentDocx(req, res) {
     } else {
       action = "created";
       const { rows } = await client.query(
-        `INSERT INTO student (group_id, last_name, first_name, patronymic, phone, birth_date, birth_place)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO student (category, group_id, last_name, first_name, patronymic, phone, birth_date, birth_place)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
         [
-          groupId,
+          category,
+          isCadet ? groupId : null,
           parsed.fio.last_name,
           parsed.fio.first_name,
           parsed.fio.patronymic ?? null,

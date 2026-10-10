@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { validateStudentPayload } from "../../../socdemValidation.js";
 import { api, exportDocxUrl } from "../api";
-import HousingPicker from "../components/HousingPicker.jsx";
+import { useConfirm } from "../components/ConfirmDialog.jsx";
 import { IdentityLine } from "../components/PersonIdentity.jsx";
+import PageLoader from "../components/PageLoader.jsx";
 import PhotoSlots from "../components/PhotoSlots.jsx";
 import RecordSection from "../components/RecordSection.jsx";
 import {
@@ -17,7 +19,8 @@ import {
   relativeSummary,
 } from "../profileConfig";
 import { formatDuty, formatRank } from "../serviceTitle.js";
-import { formatDate, toInputDate } from "../utils";
+import { disciplineAuthorityLabel } from "../../../disciplineAuthorities.js";
+import { formatDate, personCategory, personnelListPath, toInputDate } from "../utils";
 
 function buildForm(s) {
   const form = {
@@ -27,7 +30,6 @@ function buildForm(s) {
     phone: s.phone ?? "",
     birth_date: toInputDate(s.birth_date),
     group_id: String(s.group_id ?? ""),
-    housing: s.housing ?? "",
   };
   for (const f of PROFILE_FIELDS) {
     form[f.key] = s[f.key] ?? "";
@@ -43,7 +45,9 @@ function displayName(s) {
 
 export default function StudentCardPage() {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+  const ask = useConfirm();
   const [data, setData] = useState(null);
   const [groups, setGroups] = useState([]);
   const [loadError, setLoadError] = useState("");
@@ -68,6 +72,20 @@ export default function StudentCardPage() {
     );
   }, [load]);
 
+  useEffect(() => {
+    if (!data || editing) return;
+    const anchor = location.hash.replace(/^#/, "");
+    if (!anchor) return;
+    const timer = window.setTimeout(() => {
+      const el = document.getElementById(anchor);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("socdem-jump-highlight");
+      window.setTimeout(() => el.classList.remove("socdem-jump-highlight"), 2400);
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [data, editing, location.hash]);
+
   if (loadError) {
     return (
       <section className="card">
@@ -76,7 +94,7 @@ export default function StudentCardPage() {
       </section>
     );
   }
-  if (!data) return <p className="muted">Загрузка карточки…</p>;
+  if (!data) return <PageLoader label="Загрузка карточки…" />;
 
   const startEdit = () => {
     setForm(buildForm(data));
@@ -91,7 +109,16 @@ export default function StudentCardPage() {
     setSaving(true);
     setFormError("");
     try {
-      await api.updateStudent(id, { ...form, group_id: Number(form.group_id) });
+      const payload = { ...form };
+      if (personCategory(data) === "cadet") payload.group_id = Number(form.group_id);
+      else delete payload.group_id;
+      delete payload.housing;
+      const validationError = validateStudentPayload(payload);
+      if (validationError) {
+        setFormError(validationError);
+        return;
+      }
+      await api.updateStudent(id, payload);
       await load();
       setEditing(false);
     } catch (err) {
@@ -102,9 +129,13 @@ export default function StudentCardPage() {
   };
 
   const removeStudent = async () => {
-    if (!confirm("Удалить человека и все его данные из базы?")) return;
+    const ok = await ask({
+      title: "Удалить человека?",
+      message: `Карточка «${displayName(data)}» будет удалена из базы вместе с фото и связанными записями.`,
+    });
+    if (!ok) return;
     await api.deleteStudent(id);
-    navigate("/students");
+    navigate(personnelListPath(personCategory(data)));
   };
 
   const handleDocxImport = async (e) => {
@@ -136,23 +167,23 @@ export default function StudentCardPage() {
     }
   };
 
+  const category = personCategory(data);
   return (
     <section className="card student-card">
       <div className="card-head">
         <div>
-          <Link to="/students" className="back-link">
-            ← К списку студентов
-          </Link>
           <IdentityLine person={data} />
           <h2>{displayName(data)}</h2>
-          <p className="muted">
-            Группа{" "}
-            {data.group_id ? (
-              <Link to={`/groups/${data.group_id}`}>{data.group_name}</Link>
-            ) : (
-              data.group_name
-            )}
-          </p>
+          {category === "cadet" ? (
+            <p className="muted" id="socdem-field-group">
+              Группа{" "}
+              {data.group_id ? (
+                <Link to={`/groups/${data.group_id}`}>{data.group_name}</Link>
+              ) : (
+                data.group_name || "—"
+              )}
+            </p>
+          ) : null}
         </div>
         <div className="form-actions">
           {!editing && (
@@ -210,25 +241,19 @@ export default function StudentCardPage() {
               Номер телефона *
               <input required value={form.phone} onChange={set("phone")} />
             </label>
-            <label>
-              Группа *
-              <select required value={form.group_id} onChange={set("group_id")}>
-                <option value="">— выберите —</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="wide housing-field">
-              <p className="housing-field-label">Проживание</p>
-              <HousingPicker
-                name="housing-card-edit"
-                value={form.housing}
-                onChange={(housing) => setForm((f) => ({ ...f, housing }))}
-              />
-            </div>
+            {category === "cadet" ? (
+              <label>
+                Группа *
+                <select required value={form.group_id} onChange={set("group_id")}>
+                  <option value="">— выберите —</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {PROFILE_FIELDS.map((f) => (
               <label key={f.key} className={f.wide ? "wide" : undefined}>
                 {f.label}
@@ -248,38 +273,20 @@ export default function StudentCardPage() {
         </form>
       ) : (
         <dl className="profile-list">
-          <div>
+          <div id="socdem-field-identity">
             <dt>Ф.И.О.</dt>
             <dd>{displayName(data)}</dd>
           </div>
-          <div>
+          <div id="socdem-field-birth_date">
             <dt>Дата рождения</dt>
             <dd>{formatDate(data.birth_date)}</dd>
           </div>
-          <div>
+          <div id="socdem-field-phone">
             <dt>Номер телефона</dt>
             <dd>{data.phone || "—"}</dd>
           </div>
-          <div className="housing-profile">
-            <dt>Проживание</dt>
-            <dd>
-              <HousingPicker
-                name={`housing-card-${data.id}`}
-                value={data.housing || ""}
-                onChange={async (housing) => {
-                  setFormError("");
-                  try {
-                    await api.updateStudent(id, { housing });
-                    await load();
-                  } catch (err) {
-                    setFormError(err.message);
-                  }
-                }}
-              />
-            </dd>
-          </div>
           {PROFILE_FIELDS.map((f) => (
-            <div key={f.key}>
+            <div key={f.key} id={`socdem-field-${f.key}`}>
               <dt>{f.label}</dt>
               <dd>
                 {f.key === "position"
@@ -302,6 +309,7 @@ export default function StudentCardPage() {
         summary={relativeSummary}
         onChanged={load}
         addLabel="Добавить родственника"
+        sectionId="socdem-section-relatives"
       />
 
       <RecordSection
@@ -313,6 +321,7 @@ export default function StudentCardPage() {
         summary={commanderSummary}
         onChanged={load}
         addLabel="Добавить командира"
+        sectionId="socdem-section-commanders"
       />
 
       <RecordSection
@@ -324,6 +333,7 @@ export default function StudentCardPage() {
         summary={careerSummary}
         onChanged={load}
         addLabel="Добавить период"
+        sectionId="socdem-section-career"
       />
 
       <RecordSection
@@ -336,9 +346,10 @@ export default function StudentCardPage() {
         onChanged={load}
         addLabel="Добавить событие"
         sectionClassName="mourning-section"
+        sectionId="socdem-section-mourning"
       />
 
-      <section className="card-section">
+      <section className="card-section" id="socdem-section-discipline">
         <div className="card-section-head">
           <h3>Дисциплинарная практика</h3>
           <Link to={`/discipline?student=${data.id}`} className="btn btn-sm">
@@ -363,6 +374,7 @@ export default function StudentCardPage() {
                     : d.kind !== "commendation"
                       ? " · действует"
                       : ""}
+                  {d.imposed_by ? ` · ${disciplineAuthorityLabel(d.imposed_by)}` : ""}
                   {d.reason ? ` · ${d.reason}` : ""}
                 </p>
               </li>
@@ -371,7 +383,7 @@ export default function StudentCardPage() {
         )}
       </section>
 
-      <section className="card-section">
+      <section className="card-section" id="socdem-section-photos">
         <div className="card-section-head">
           <h3>Цветное фото</h3>
         </div>

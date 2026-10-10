@@ -1,3 +1,4 @@
+import { validateRecordPayload } from "../../socdemValidation.js";
 import { pool } from "./db.js";
 import { splitRelativeDeath } from "./deathFromSocdem.js";
 
@@ -135,6 +136,11 @@ export async function createRecord(req, res) {
     res.status(400).json({ error: `Заполните поле: ${LABELS[miss] ?? miss}` });
     return;
   }
+  const formatError = validateRecordPayload(req.params.kind, values);
+  if (formatError) {
+    res.status(400).json({ error: formatError });
+    return;
+  }
   const cols = ["student_id", ...kind.columns];
   const params = [studentId, ...kind.columns.map((c) => values[c])];
   const placeholders = params.map((_, i) => `$${i + 1}`).join(", ");
@@ -161,6 +167,11 @@ export async function updateRecord(req, res) {
   const miss = missingRequired(values, kind);
   if (miss) {
     res.status(400).json({ error: `Заполните поле: ${LABELS[miss] ?? miss}` });
+    return;
+  }
+  const formatError = validateRecordPayload(req.params.kind, values);
+  if (formatError) {
+    res.status(400).json({ error: formatError });
     return;
   }
   const sets = kind.columns.map((c, i) => `${c} = $${i + 1}`).join(", ");

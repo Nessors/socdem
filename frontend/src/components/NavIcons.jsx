@@ -85,6 +85,23 @@ export function IconMourning(props) {
   );
 }
 
+export function IconOfficer(props) {
+  return (
+    <svg {...common} {...props}>
+      <path d="M12 3.2 14.4 8.4 20 9.1 16.2 12.8 17.1 18.5 12 15.8 6.9 18.5 7.8 12.8 4 9.1 9.6 8.4 12 3.2Z" />
+    </svg>
+  );
+}
+
+export function IconCivilian(props) {
+  return (
+    <svg {...common} {...props}>
+      <rect x="3" y="7" width="18" height="13" rx="1.5" />
+      <path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7M3 12h18" />
+    </svg>
+  );
+}
+
 export function IconDiscipline(props) {
   return (
     <svg {...common} {...props}>
@@ -94,13 +111,39 @@ export function IconDiscipline(props) {
   );
 }
 
+export function IconCalendar(props) {
+  return (
+    <svg {...common} {...props}>
+      <rect x="4" y="5" width="16" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M4 10h16" />
+      <path d="M8 14h2v2H8z" />
+    </svg>
+  );
+}
+
+export function IconGrid(props) {
+  return (
+    <svg {...common} {...props}>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
 const NAV_ICON = {
   home: IconHome,
   users: IconUsers,
+  officer: IconOfficer,
+  civilian: IconCivilian,
   family: IconFamily,
+  calendar: IconCalendar,
   map: IconMap,
   mourning: IconMourning,
   discipline: IconDiscipline,
+  faculty: IconStatBuilding,
+  groups: IconGrid,
 };
 
 export function NavIcon({ name }) {

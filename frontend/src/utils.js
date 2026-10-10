@@ -9,6 +9,33 @@ export function dashText(value) {
   return t || "—";
 }
 
+export function personCategory(person) {
+  return person?.category === "officer" || person?.category === "civilian"
+    ? person.category
+    : "cadet";
+}
+
+export function personnelListPath(category) {
+  if (category === "officer") return "/officers";
+  if (category === "civilian") return "/civilians";
+  return "/students";
+}
+
+/** Куда вести «назад» из карточки, если открыли из списка состава. */
+export function personnelListReturn(category) {
+  if (category === "officer") {
+    return { pathname: "/officers", label: "К списку офицеров" };
+  }
+  if (category === "civilian") {
+    return { pathname: "/civilians", label: "К гражданскому персоналу" };
+  }
+  return { pathname: "/students", label: "К личному составу" };
+}
+
+export function newPersonPath(category) {
+  return `${personnelListPath(category)}/new`;
+}
+
 export function personSearchHay(person) {
   return `${formatDuty(person)} ${formatRank(person)} ${person.position ?? ""} ${person.military_rank ?? ""} ${fullName(person)}`;
 }
@@ -25,6 +52,29 @@ export function toInputDate(isoDate) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
 }
 
+/** Уникальные значения полей карточек для подсказок при вводе */
+export function mergeProfileSuggestions(fromCards, fromCatalog, placeKeys) {
+  const merged = { ...fromCards };
+  for (const key of placeKeys) {
+    const set = new Set([...(fromCatalog?.[key] ?? []), ...(fromCards?.[key] ?? [])]);
+    merged[key] = [...set].sort((a, b) => a.localeCompare(b, "ru"));
+  }
+  return merged;
+}
+
+export function buildProfileFieldSuggestions(people, fieldKeys) {
+  const sets = Object.fromEntries(fieldKeys.map((key) => [key, new Set()]));
+  for (const person of people) {
+    for (const key of fieldKeys) {
+      const value = String(person[key] ?? "").trim();
+      if (value) sets[key].add(value);
+    }
+  }
+  return Object.fromEntries(
+    fieldKeys.map((key) => [key, [...sets[key]].sort((a, b) => a.localeCompare(b, "ru"))])
+  );
+}
+
 /** 2006-11-24 -> «24 ноября 2006» */
 export function formatDate(isoDate) {
   const s = toInputDate(isoDate);
@@ -39,6 +89,36 @@ export function formatShortDate(isoDate) {
   if (!s) return "";
   const [y, m, d] = s.split("-");
   return `${d}.${m}.${y}`;
+}
+
+/** 2006-11-24 -> «24 ноября» */
+export function formatBirthdayDayMonth(isoDate) {
+  const s = toInputDate(isoDate);
+  if (!s) return "—";
+  const [, m, d] = s.split("-").map(Number);
+  return `${d} ${MONTHS[m - 1]}`;
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** Ближайший день рождения (сегодня или позже). */
+export function nextBirthdayOn(isoDate, today = new Date()) {
+  const s = toInputDate(isoDate);
+  if (!s) return null;
+  const [, m, d] = s.split("-").map(Number);
+  const base = startOfDay(today);
+  let next = new Date(base.getFullYear(), m - 1, d);
+  if (next < base) next = new Date(base.getFullYear() + 1, m - 1, d);
+  return next;
+}
+
+export function daysUntilBirthday(isoDate, today = new Date()) {
+  const next = nextBirthdayOn(isoDate, today);
+  if (!next) return null;
+  const base = startOfDay(today);
+  return Math.round((next - base) / 86400000);
 }
 
 const CSV_SEP = /[;,]/;

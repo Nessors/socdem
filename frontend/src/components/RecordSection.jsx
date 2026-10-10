@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { validateRecordPayload } from "../../../socdemValidation.js";
 import { api } from "../api";
+import { useConfirm } from "./ConfirmDialog.jsx";
 import { toInputDate } from "../utils";
 
 function emptyForm(fields) {
@@ -29,7 +31,10 @@ export default function RecordSection({
   onChanged,
   addLabel = "Добавить",
   sectionClassName = "",
+  sectionId = "",
 }) {
+  const ask = useConfirm();
+  const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null); // null | "new" | id
   const [form, setForm] = useState(emptyForm(fields));
   const [error, setError] = useState("");
@@ -39,6 +44,7 @@ export default function RecordSection({
     setForm(emptyForm(fields));
     setError("");
     setEditingId("new");
+    setOpen(true);
   };
 
   const startEdit = (item) => {
@@ -52,6 +58,12 @@ export default function RecordSection({
     setError("");
   };
 
+  const closeBlock = () => {
+    setEditingId(null);
+    setError("");
+    setOpen(false);
+  };
+
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const submit = async (e) => {
@@ -59,6 +71,11 @@ export default function RecordSection({
     setSaving(true);
     setError("");
     try {
+      const validationError = validateRecordPayload(kind, form);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
       if (editingId === "new") {
         await api.createRecord(studentId, kind, form);
       } else {
@@ -74,7 +91,14 @@ export default function RecordSection({
   };
 
   const remove = async (item) => {
-    if (!confirm("Удалить запись?")) return;
+    const { title: recordTitle } = summary(item);
+    const ok = await ask({
+      title: "Удалить запись?",
+      message: recordTitle
+        ? `Запись «${recordTitle}» будет удалена.`
+        : "Запись будет удалена.",
+    });
+    if (!ok) return;
     await api.deleteRecord(studentId, kind, item.id);
     if (editingId === item.id) setEditingId(null);
     await onChanged();
@@ -105,18 +129,53 @@ export default function RecordSection({
           Отмена
         </button>
       </div>
+      {editingId !== "new" && (
+        <div className="record-delete">
+          <button
+            type="button"
+            className="btn danger"
+            disabled={saving}
+            onClick={() => {
+              const item = items.find((row) => row.id === editingId);
+              if (item) remove(item);
+            }}
+          >
+            Удалить запись
+          </button>
+        </div>
+      )}
     </form>
   );
 
   return (
-    <section className={`card-section${sectionClassName ? ` ${sectionClassName}` : ""}`}>
+    <section
+      id={sectionId || undefined}
+      className={`card-section${sectionClassName ? ` ${sectionClassName}` : ""}`}
+    >
       <div className="card-section-head">
         <h3>{title}</h3>
-        {editingId == null && (
-          <button type="button" className="btn btn-sm" onClick={startNew}>
-            + {addLabel}
-          </button>
-        )}
+        <div className="card-section-tools">
+          {open ? (
+            <>
+              {editingId == null && (
+                <button type="button" className="btn btn-sm" onClick={startNew}>
+                  + {addLabel}
+                </button>
+              )}
+              <button type="button" className="btn btn-sm" onClick={closeBlock}>
+                Готово
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => (items.length === 0 ? startNew() : setOpen(true))}
+            >
+              {items.length === 0 ? `+ ${addLabel}` : "Изменить"}
+            </button>
+          )}
+        </div>
       </div>
 
       {items.length === 0 && editingId !== "new" && (
@@ -139,22 +198,17 @@ export default function RecordSection({
                 <strong>{t}</strong>
                 <span>{text}</span>
               </div>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={() => startEdit(item)}
-                >
-                  Изменить
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm danger"
-                  onClick={() => remove(item)}
-                >
-                  Удалить
-                </button>
-              </div>
+              {open && (
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => startEdit(item)}
+                  >
+                    Изменить
+                  </button>
+                </div>
+              )}
             </li>
           );
         })}

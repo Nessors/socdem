@@ -43,13 +43,36 @@ const RANKS = [
   "мичман",
 ];
 
+/** Звания для выбора в форме — только наименование, без приказов */
+export const MILITARY_RANKS = [
+  "Рядовой",
+  "Ефрейтор",
+  "Младший сержант",
+  "Сержант",
+  "Старший сержант",
+  "Старшина",
+  "Прапорщик",
+  "Старший прапорщик",
+  "Мичман",
+  "Младший лейтенант",
+  "Лейтенант",
+  "Старший лейтенант",
+  "Капитан",
+  "Майор",
+  "Подполковник",
+  "Полковник",
+  "Генерал-майор",
+  "Генерал-лейтенант",
+  "Генерал-полковник",
+];
+
 export function capFirst(text) {
   const t = String(text ?? "").trim();
   if (!t) return "";
   return t.charAt(0).toLocaleUpperCase("ru") + t.slice(1);
 }
 
-function stripOrder(text) {
+export function stripOrder(text) {
   return String(text ?? "")
     .replace(/\(.*?\)/gs, " ")
     .replace(/приказ\b[\s\S]*/i, " ")
@@ -86,16 +109,24 @@ export function courseCodeFromGroup(groupName, now = new Date()) {
 }
 
 export function formatDuty(person, now) {
+  if (person?.category === "officer" || person?.category === "civilian") {
+    const raw = stripOrder(person?.position);
+    return raw ? capFirst(raw) : "";
+  }
   const code = courseCodeFromGroup(person?.group_name, now);
   const duty = detectDuty(person?.position);
   if (code) return `${duty} ${code} курса`;
   return duty;
 }
 
-export function formatRank(person) {
-  const raw = stripOrder(person?.military_rank);
+export function normalizeMilitaryRank(text) {
+  const raw = stripOrder(text);
   if (!raw) return "";
   const lower = raw.toLowerCase();
   const hit = RANKS.find((rank) => lower.startsWith(rank) || lower.includes(rank));
   return capFirst(hit || raw.split(/[.,;]/)[0].trim());
+}
+
+export function formatRank(person) {
+  return normalizeMilitaryRank(person?.military_rank);
 }

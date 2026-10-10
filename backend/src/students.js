@@ -1,4 +1,6 @@
+import { validateStudentPayload } from "../../socdemValidation.js";
 import { pool } from "./db.js";
+import { registerProfilePlaces } from "./placeCatalog.js";
 import { originRegion } from "./regions.js";
 
 /** Текстовые поля карточки соцдема (whitelist для INSERT/UPDATE) */
@@ -26,6 +28,7 @@ export const PROFILE_TEXT_COLUMNS = [
   "driver_license",
   "car",
   "housing",
+  "category",
 ];
 
 const BASE_COLUMNS = [
@@ -49,8 +52,16 @@ export const STUDENT_SELECT = `
       SELECT 1 FROM student_photo p WHERE p.student_id = st.id AND p.slot = 2
     ) AS has_photo_2
   FROM student st
-  JOIN student_group g ON g.id = st.group_id
+  LEFT JOIN student_group g ON g.id = st.group_id
 `;
+
+function categoryOf(body) {
+  if (!body || !("category" in body) || body.category == null || body.category === "") {
+    return "cadet";
+  }
+  const value = String(body.category).trim();
+  return CATEGORIES.has(value) ? value : "";
+}
 
 function validateStudentBody(body, { partial = false } = {}) {
   const need = (key) => !partial || key in body;
@@ -59,7 +70,15 @@ function validateStudentBody(body, { partial = false } = {}) {
   if (need("first_name") && !body.first_name?.trim()) return "Укажите имя";
   if (need("phone") && !body.phone?.trim()) return "Укажите телефон";
   if (need("birth_date") && !body.birth_date) return "Укажите дату рождения";
-  if (need("group_id") && !body.group_id) return "Выберите группу";
+  if ("category" in body && body.category != null && body.category !== "" && !categoryOf(body)) {
+    return "Некорректная категория";
+  }
+  const category = categoryOf(body);
+  if (category === "cadet" && need("group_id") && !body.group_id) return "Выберите группу";
+
+  const formatError = validateStudentPayload(body, { partial });
+  if (formatError) return formatError;
+
   return null;
 }
 
@@ -83,7 +102,43 @@ async function resolveGroupId(groupRef) {
   return rows[0]?.id ?? null;
 }
 
+function normalizeMilitaryRankStored(value) {
+  const raw = String(value ?? "")
+    .replace(/\(.*?\)/gs, " ")
+    .replace(/приказ\b[\s\S]*/i, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  const ranks = [
+    "младший лейтенант",
+    "старший лейтенант",
+    "старший прапорщик",
+    "младший сержант",
+    "старший сержант",
+    "генерал-полковник",
+    "генерал-лейтенант",
+    "генерал-майор",
+    "подполковник",
+    "прапорщик",
+    "лейтенант",
+    "ефрейтор",
+    "рядовой",
+    "сержант",
+    "старшина",
+    "капитан",
+    "майор",
+    "полковник",
+    "мичман",
+  ];
+  const hit = ranks.find((rank) => lower.startsWith(rank) || lower.includes(rank));
+  const word = hit || raw.split(/[.,;]/)[0].trim();
+  if (!word) return null;
+  return word.charAt(0).toLocaleUpperCase("ru") + word.slice(1);
+}
+
 const HOUSING_OK = new Set(["barracks", "off_barracks"]);
+const CATEGORIES = new Set(["cadet", "officer", "civilian"]);
 
 function cleanValue(key, value) {
   if (key === "group_id") return value;
@@ -92,8 +147,13 @@ function cleanValue(key, value) {
     if (!t) return null;
     return HOUSING_OK.has(t) ? t : undefined;
   }
+  if (key === "category") {
+    const t = String(value ?? "").trim();
+    return CATEGORIES.has(t) ? t : undefined;
+  }
   if (typeof value === "string") {
-    const t = value.trim();
+    let t = value.trim();
+    if (key === "military_rank" && t) t = normalizeMilitaryRankStored(t) ?? "";
     return t === "" ? null : t;
   }
   return value ?? null;
@@ -106,6 +166,11 @@ async function pickColumns(body) {
   for (const key of ALL_COLUMNS) {
     if (!(key in body)) continue;
     if (key === "group_id") {
+      if (body.group_id == null || body.group_id === "") {
+        cols.push(key);
+        values.push(null);
+        continue;
+      }
       const gid = await resolveGroupId(body.group_id);
       if (!gid) return { error: "Группа не найдена" };
       cols.push(key);
@@ -116,10 +181,34 @@ async function pickColumns(body) {
     if (key === "housing" && cleaned === undefined) {
       return { error: "Укажите: в казарме или вне казармы" };
     }
+    if (key === "category" && cleaned === undefined) {
+      return { error: "Некорректная категория" };
+    }
     cols.push(key);
     values.push(cleaned);
   }
   return { cols, values };
+}
+
+async function ensureCadetHasGroup(id, cols, values) {
+  let category;
+  let groupId;
+  const categoryIndex = cols.indexOf("category");
+  const groupIndex = cols.indexOf("group_id");
+  if (categoryIndex >= 0) category = values[categoryIndex];
+  if (groupIndex >= 0) groupId = values[groupIndex];
+  if (id && (categoryIndex < 0 || groupIndex < 0)) {
+    const { rows } = await pool.query(
+      "SELECT category, group_id FROM student WHERE id = $1",
+      [id]
+    );
+    if (!rows[0]) return "Человек не найден";
+    if (categoryIndex < 0) category = rows[0].category || "cadet";
+    if (groupIndex < 0) groupId = rows[0].group_id;
+  }
+  if (!category) category = "cadet";
+  if (category === "cadet" && !groupId) return "Выберите группу";
+  return null;
 }
 
 export async function getStudentFull(id) {
@@ -189,6 +278,11 @@ export async function createStudent(req, res) {
     res.status(400).json({ error: picked.error });
     return;
   }
+  const groupError = await ensureCadetHasGroup(null, picked.cols, picked.values);
+  if (groupError) {
+    res.status(400).json({ error: groupError });
+    return;
+  }
   const placeholders = picked.cols.map((_, i) => `$${i + 1}`).join(", ");
   const { rows } = await pool.query(
     `INSERT INTO student (${picked.cols.join(", ")})
@@ -196,6 +290,7 @@ export async function createStudent(req, res) {
      RETURNING id`,
     picked.values
   );
+  await registerProfilePlaces(req.body, pool);
   res.status(201).json(await getStudentFull(rows[0].id));
 }
 
@@ -215,6 +310,11 @@ export async function updateStudent(req, res) {
     res.status(400).json({ error: picked.error });
     return;
   }
+  const groupError = await ensureCadetHasGroup(id, picked.cols, picked.values);
+  if (groupError) {
+    res.status(400).json({ error: groupError });
+    return;
+  }
   if (picked.cols.length === 0) {
     res.status(400).json({ error: "Нет данных для обновления" });
     return;
@@ -228,6 +328,7 @@ export async function updateStudent(req, res) {
     res.status(404).json({ error: "Студент не найден" });
     return;
   }
+  await registerProfilePlaces(req.body, pool);
   res.json(await getStudentFull(id));
 }
 
