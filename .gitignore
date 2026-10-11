@@ -4,3 +4,9 @@ dist/
 pgdata/
 data/
 runtime/node/
+
+# Брендбук и материалы бренда — только локально, не в git
+.cursor/skills/brand/
+brand-book.json
+BrandBook*.pdf
+**/brand-book.json
