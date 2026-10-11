@@ -23,6 +23,7 @@ import ChangePasswordPage from "./pages/ChangePasswordPage.jsx";
 import { api } from "./api.js";
 
 import ParadeBanner from "./components/ParadeBanner.jsx";
+import academyMark from "./assets/academy-mark-navy.png";
 import PageLoader from "./components/PageLoader.jsx";
 import { ConfirmProvider, useConfirm } from "./components/ConfirmDialog.jsx";
 import { NavIcon } from "./components/NavIcons.jsx";
@@ -168,35 +169,9 @@ function usePageMeta() {
   );
 }
 
-/** Кнопка «назад» в шапке: справа, на всех экранах кроме главной. */
+/** На всех экранах кроме главной — одна кнопка «На главную». */
 function useTopbarBack(location) {
-  const { pathname } = location;
-  const returnTo = location.state?.returnTo;
-  if (pathname === "/") return null;
-
-  if (returnTo?.pathname) {
-    return { to: returnTo.pathname, label: returnTo.label ?? "Назад" };
-  }
-
-  if (matchPath({ path: "/students/new", end: true }, pathname)) {
-    return { to: "/students", label: "К списку" };
-  }
-  if (matchPath({ path: "/officers/new", end: true }, pathname)) {
-    return { to: "/officers", label: "К списку" };
-  }
-  if (matchPath({ path: "/civilians/new", end: true }, pathname)) {
-    return { to: "/civilians", label: "К списку" };
-  }
-  if (matchPath({ path: "/students/:id", end: true }, pathname)) {
-    return { to: "/", label: "На главную" };
-  }
-  if (matchPath({ path: "/groups/:id", end: true }, pathname)) {
-    return { to: "/groups", label: "К группам" };
-  }
-  if (matchPath({ path: "/faculty/:course", end: true }, pathname)) {
-    return { to: "/faculty", label: "К курсам" };
-  }
-
+  if (location.pathname === "/") return null;
   return { to: "/", label: "На главную" };
 }
 
@@ -207,6 +182,11 @@ function AppShell({ onStopped }) {
   const topbarBack = useTopbarBack(location);
   const ask = useConfirm();
   const [navOpen, setNavOpen] = useState(true);
+  const isHome = location.pathname === "/";
+
+  useEffect(() => {
+    if (location.pathname !== "/") setNavOpen(false);
+  }, [location.pathname]);
 
   function openSection(path) {
     setNavOpen(false);
@@ -280,16 +260,25 @@ function AppShell({ onStopped }) {
       <div className="app-workspace">
         <header className="topbar">
           <div className="topbar-lead">
-            <div className="topbar-toolbar">
-              <button
-                type="button"
-                className="nav-toggle"
-                aria-expanded={navOpen}
-                onClick={() => setNavOpen((open) => !open)}
-              >
-                {navOpen ? "Скрыть меню" : "Меню"}
-              </button>
-            </div>
+            {isHome ? (
+              <div className="topbar-toolbar">
+                <button
+                  type="button"
+                  className="nav-toggle"
+                  aria-expanded={navOpen}
+                  onClick={() => setNavOpen((open) => !open)}
+                >
+                  {navOpen ? "Скрыть меню" : "Меню"}
+                </button>
+              </div>
+            ) : null}
+            <img
+              className="topbar-mark"
+              src={academyMark}
+              alt=""
+              width={40}
+              height={40}
+            />
             <div>
               <p className="topbar-kicker">{page.kicker}</p>
               <h1>{page.title}</h1>

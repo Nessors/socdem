@@ -137,12 +137,14 @@ export default function DashboardPage() {
       <section className="panel dash-search-panel">
         <header className="dash-search-head">
           <div>
-            <p className="section-caption">Поиск</p>
-            <h3>Найти курсанта</h3>
+            <p className="section-caption">Главная</p>
+            <h3>Умный поиск</h3>
+            <p className="dash-search-lead muted">
+              Введите фамилию, имя, телефон или группу — откроется карточка курсанта.
+              Справа выберите раздел соцдема: умный поиск сразу перенесёт в нужный блок
+              (семья, командиры, дисциплина и т.д.).
+            </p>
           </div>
-          <Link to="/students" className="btn btn-sm">
-            Весь л/с
-          </Link>
         </header>
 
         <div className="dash-search-toolbar">
@@ -157,7 +159,7 @@ export default function DashboardPage() {
           />
 
           <label className="dash-field dash-field-target">
-            <span className="dash-field-label">Раздел соцдема</span>
+            <span className="dash-field-label">Куда перейти в карточке</span>
             <select
               className="dash-search-select"
               value={jumpTarget}
@@ -180,7 +182,8 @@ export default function DashboardPage() {
         <div className="dash-search-results">
           {!searching ? (
             <p className="muted dash-search-idle">
-              Начните ввод — появятся фамилии для перехода в карточку.
+              Начните ввод — ниже появятся совпадения. Переход откроет карточку в выбранном
+              разделе («{jumpLabel}»).
             </p>
           ) : filtered.length === 0 ? (
             <p className="dash-hits-empty muted">Никого не найдено по этому запросу.</p>
@@ -195,7 +198,6 @@ export default function DashboardPage() {
                   <li key={s.id}>
                     <Link
                       to={`/students/${s.id}#${jumpTarget}`}
-                      state={{ returnTo: { pathname: "/", label: "На главную" } }}
                       className="dash-hit"
                       title={`Открыть: ${jumpLabel}`}
                     >

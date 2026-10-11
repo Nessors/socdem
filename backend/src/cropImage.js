@@ -40,11 +40,32 @@ export function imageSize(buf) {
   return pngSize(buf) || jpegSize(buf);
 }
 
-/** Полный рост в соцдеме — высокий портрет (~9:16). По грудь ближе к 4:5. */
-export function looksLikeFullBody(buf) {
+/** Полный рост — высокий кадр (~2:3 и выше). По грудь ближе к 3:4 и 4:5. */
+export const FULL_BODY_ASPECT = 1.65;
+export const BUST_ASPECT = 1.52;
+
+export function photoAspectRatio(buf) {
   const sz = imageSize(buf);
-  if (!sz?.width || !sz?.height) return false;
-  return sz.height / sz.width >= 1.2;
+  if (!sz?.width || !sz?.height) return null;
+  return sz.height / sz.width;
+}
+
+export function looksLikeFullBody(buf) {
+  const ratio = photoAspectRatio(buf);
+  return ratio != null && ratio >= FULL_BODY_ASPECT;
+}
+
+export function looksLikeBust(buf) {
+  const ratio = photoAspectRatio(buf);
+  return ratio != null && ratio <= BUST_ASPECT;
+}
+
+export function frameKind(buf) {
+  const ratio = photoAspectRatio(buf);
+  if (ratio == null) return "unknown";
+  if (ratio >= FULL_BODY_ASPECT) return "full";
+  if (ratio <= BUST_ASPECT) return "bust";
+  return "mid";
 }
 
 function runCrop(args) {
@@ -141,9 +162,26 @@ export async function cropBySrcRect(buffer, rect) {
 }
 
 /** Кадр по грудь / нашивки: от макушки до груди, без ног. */
-export async function cropToBust(buffer) {
-  if (!looksLikeFullBody(buffer)) return null;
-  return withTempImage(buffer, (inputPath, outputPath) =>
-    runCrop(["-InputPath", inputPath, "-OutputPath", outputPath, "-Mode", "bust"])
-  );
+export async function cropToBust(buffer, { force = false } = {}) {
+  const ratio = photoAspectRatio(buffer);
+  if (!force && ratio != null && ratio < 1.28) return null;
+  return withTempImage(buffer, (inputPath, outputPath) => {
+    const args = ["-InputPath", inputPath, "-OutputPath", outputPath, "-Mode", "bust"];
+    if (force) args.push("-ForceBust");
+    return runCrop(args);
+  });
+}
+
+/** Запасная обрезка верхней половины кадра, если авто-режим не сработал. */
+export async function cropToBustFallback(buffer) {
+  const sz = imageSize(buffer);
+  if (!sz?.width || !sz?.height) return null;
+  const keepH = Math.max(8, Math.round(sz.height * 0.5));
+  const b = Math.max(0, 1 - keepH / sz.height - 0.02);
+  return cropBySrcRect(buffer, { l: 0.06, t: 0.02, r: 0.06, b });
+}
+
+export function sameImageBuffer(a, b) {
+  if (!a?.length || !b?.length || a.length !== b.length) return false;
+  return a.equals(b);
 }

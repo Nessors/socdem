@@ -90,7 +90,7 @@ export default function StudentCardPage() {
     return (
       <section className="card">
         <p className="form-error">{loadError}</p>
-        <Link to="/students">← К списку</Link>
+        <Link to="/">← На главную</Link>
       </section>
     );
   }

@@ -291,6 +291,7 @@ export default function DocxBatchImport({ groups = [], category = "cadet", onImp
         <label className="docx-batch-group-all">
           <span>Группа для всех файлов</span>
           <select
+            className="docx-group-select"
             value={batchGroupId}
             disabled={running}
             onChange={(e) => setBatchGroupId(e.target.value)}
@@ -368,7 +369,7 @@ export default function DocxBatchImport({ groups = [], category = "cadet", onImp
                 </div>
                 {isCadet ? (
                   <select
-                    className={ambiguous || needsGroup ? "select-warn" : undefined}
+                    className={`docx-group-select${ambiguous || needsGroup ? " select-warn" : ""}`}
                     aria-label="Группа"
                     value={rowGroupValue}
                     disabled={running}

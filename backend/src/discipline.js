@@ -63,7 +63,8 @@ export async function createDiscipline(req, res) {
     typeof req.body?.reason === "string" && req.body.reason.trim()
       ? req.body.reason.trim()
       : null;
-  const issuedAt = parseDate(req.body?.issued_at) ?? new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  let issuedAt = parseDate(req.body?.issued_at) ?? today;
 
   if (!studentId) {
     res.status(400).json({ error: "Укажите курсанта" });
@@ -91,6 +92,13 @@ export async function createDiscipline(req, res) {
   }
   if (!isDisciplineAuthorityId(imposedBy)) {
     res.status(400).json({ error: "Некорректная должность «кем наложено»" });
+    return;
+  }
+
+  if (PENALTY_KINDS.has(kind) && issuedAt > today) {
+    res.status(400).json({
+      error: "Выговор нельзя внести заранее — укажите сегодняшнюю дату или более раннюю.",
+    });
     return;
   }
 

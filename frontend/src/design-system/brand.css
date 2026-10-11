@@ -1,0 +1,252 @@
+/**
+ * Визуальный слой брендбука ВКА поверх существующей оболочки.
+ * Паттерны: шапка navy с золотой линией, золотая активная навигация,
+ * кремовая страница, белые карточки, таблицы с шапкой navy.
+ * Разметка и поведение не меняются.
+ */
+
+.app-frame {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(230, 189, 117, 0.08), transparent 50%),
+    var(--vka-cream) !important;
+  animation: none !important;
+  filter: none !important;
+}
+
+.app-workspace::before,
+.app-workspace::after,
+.app-sidebar::before,
+.app-parade .parade::after {
+  display: none !important;
+}
+
+.app-sidebar {
+  background: var(--vka-navy) !important;
+  border-right: none !important;
+  box-shadow: inset -2px 0 0 var(--vka-gold) !important;
+}
+
+.brand-title,
+.parade-title {
+  font-family: var(--font-serif) !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  background: none !important;
+  text-shadow: none !important;
+  letter-spacing: -0.025em;
+}
+
+.brand-kicker,
+.parade-sub,
+.brand-sub {
+  color: rgba(230, 189, 117, 0.92) !important;
+  text-shadow: none !important;
+}
+
+.app-parade .parade,
+.parade {
+  background: var(--vka-navy) !important;
+  border: none !important;
+  border-bottom: 2px solid var(--vka-gold) !important;
+  box-shadow: none !important;
+  color: #fff;
+}
+
+.app-parade .parade-gerb {
+  filter: drop-shadow(0 6px 16px rgba(5, 16, 32, 0.35)) !important;
+}
+
+.side-link {
+  border-radius: 8px !important;
+}
+
+.side-link:hover {
+  background: rgba(230, 189, 117, 0.14) !important;
+  color: #fff !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.side-link.active {
+  background: var(--vka-gold) !important;
+  color: var(--vka-navy) !important;
+  border-color: var(--vka-gold) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.side-link.active .side-icon-svg,
+.side-link:hover .side-icon-svg {
+  color: inherit !important;
+  filter: none !important;
+}
+
+.side-actions .side-btn:first-child,
+.btn.primary,
+.quick-chip--accent,
+.login-card .btn.primary {
+  background: var(--vka-gold) !important;
+  border-color: var(--vka-gold) !important;
+  color: var(--vka-navy) !important;
+  box-shadow: none !important;
+}
+
+.side-actions .side-btn:first-child:hover,
+.btn.primary:hover,
+.quick-chip--accent:hover {
+  background: var(--vka-gold-light) !important;
+  border-color: var(--vka-gold-light) !important;
+  color: var(--vka-navy) !important;
+  box-shadow: 0 0 40px -8px rgba(230, 189, 117, 0.45) !important;
+}
+
+.nav-toggle {
+  background: var(--vka-navy) !important;
+  border-color: var(--vka-gold) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.topbar {
+  background: var(--vka-cream) !important;
+  border-bottom: 2px solid var(--vka-gold) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.topbar::after {
+  display: none !important;
+}
+
+.topbar h1,
+.card h2,
+.card h3,
+.add-person h2,
+.login-card h1,
+.login-card h2,
+.confirm-dialog h2,
+.birthdays-head-copy h3,
+.dashboard .stat-value {
+  font-family: var(--font-serif) !important;
+  font-weight: 700 !important;
+  background-image: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: var(--vka-navy) !important;
+  color: var(--vka-navy) !important;
+  filter: none !important;
+  text-shadow: none !important;
+  letter-spacing: -0.025em;
+}
+
+.topbar-kicker,
+.login-form-kicker,
+.dash-command-label,
+.section-caption {
+  color: var(--vka-navy) !important;
+  text-shadow: none !important;
+}
+
+.panel,
+.card,
+.table-panel.card,
+.table-panel.panel,
+.confirm-dialog {
+  background: #fff !important;
+  border: 1px solid var(--vka-gray-50) !important;
+  box-shadow: var(--shadow-sm) !important;
+  backdrop-filter: none !important;
+}
+
+.panel::before,
+.card::before,
+.table-panel.card::before,
+.table-panel.panel::before,
+.stat-card::before {
+  background: var(--vka-gold) !important;
+  opacity: 1 !important;
+}
+
+.stat-card::before {
+  height: 4px !important;
+}
+
+.panel:hover,
+.card:hover {
+  border-color: var(--vka-gray-50) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+th,
+.dark-table th {
+  background: var(--vka-navy) !important;
+  color: #fff !important;
+  border-bottom: none !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: none !important;
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(249, 250, 251, 0.8);
+}
+
+tbody tr:hover,
+.dark-table tbody tr:hover {
+  background: rgba(230, 189, 117, 0.18) !important;
+  box-shadow: none !important;
+}
+
+.login-screen,
+.login-screen--simple {
+  background: radial-gradient(circle at 50% 45%, #0e3963 0%, #051d44 100%) !important;
+}
+
+.login-hero {
+  background: transparent !important;
+  border-right-color: rgba(230, 189, 117, 0.28) !important;
+}
+
+.login-hero::before,
+.login-hero-glow {
+  display: none !important;
+}
+
+.login-card {
+  background: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  border-radius: 1rem !important;
+  box-shadow: var(--shadow-lg) !important;
+  max-width: 420px;
+}
+
+.login-hero-lead,
+.login-hero-points {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.birthdays-day.is-today .birthdays-day-num {
+  background: var(--vka-gold) !important;
+  color: var(--vka-navy) !important;
+}
+
+.dashboard .stat-icon-svg,
+.stat-icon-svg {
+  background: var(--vka-navy) !important;
+  color: var(--vka-gold) !important;
+  box-shadow: none !important;
+}
+
+a {
+  color: var(--vka-navy);
+}
+
+a:hover {
+  color: var(--vka-navy-light);
+}
+
+.page-loader__bar {
+  background: var(--vka-gold) !important;
+  box-shadow: none !important;
+}

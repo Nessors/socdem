@@ -46,6 +46,12 @@ function todayInput() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function clampIssuedDate(value) {
+  const today = todayInput();
+  if (!value) return today;
+  return value > today ? today : value;
+}
+
 function recordsWord(n) {
   const n10 = n % 10;
   const n100 = n % 100;
@@ -184,7 +190,13 @@ export default function DisciplinePage() {
   };
 
   const handleKind = (id) => {
-    setKind((cur) => (cur === id ? "" : id));
+    setKind((cur) => {
+      const next = cur === id ? "" : id;
+      if (next && isPenalty(next)) {
+        setIssuedAt((d) => (d > todayInput() ? todayInput() : d));
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -202,6 +214,19 @@ export default function DisciplinePage() {
         kind === "commendation"
           ? "Укажите, кем объявлена благодарность."
           : "Укажите, кем наложено взыскание."
+      );
+      return;
+    }
+    const today = todayInput();
+    if (!issuedAt) {
+      setError("Укажите дату.");
+      return;
+    }
+    if (issuedAt > today) {
+      setError(
+        isPenalty(kind)
+          ? "Выговор нельзя внести заранее — только сегодня или раньше."
+          : "Дата не может быть в будущем."
       );
       return;
     }
@@ -292,7 +317,7 @@ export default function DisciplinePage() {
         )}
 
         {selected && (
-          <form className="disc-form" onSubmit={handleSubmit}>
+          <form className="disc-form" onSubmit={handleSubmit} noValidate>
             <p className="disc-selected">
               Выбран:{" "}
               <IdentityLine person={selected} />
@@ -421,15 +446,31 @@ export default function DisciplinePage() {
             ) : null}
 
             <div className="form-grid">
-              <label>
-                Дата
-                <input
-                  type="date"
-                  value={issuedAt}
-                  onChange={(e) => setIssuedAt(e.target.value)}
-                  required
-                />
-              </label>
+              <div className="disc-date-block">
+                <label>
+                  Дата
+                  <input
+                    type="date"
+                    value={issuedAt}
+                    onChange={(e) => setIssuedAt(clampIssuedDate(e.target.value))}
+                    aria-describedby={
+                      isPenalty(kind) ? "disc-date-penalty-note" : undefined
+                    }
+                  />
+                </label>
+                {isPenalty(kind) ? (
+                  <p className="field-callout" id="disc-date-penalty-note" role="note">
+                    <span className="field-callout-icon" aria-hidden="true">
+                      i
+                    </span>
+                    <span>
+                      Выговор вносится на дату факта или раньше. Запланировать на
+                      будущее нельзя — при выборе более поздней даты подставится
+                      сегодня ({formatDate(todayInput())}).
+                    </span>
+                  </p>
+                ) : null}
+              </div>
               <label>
                 Основание (необязательно)
                 <input

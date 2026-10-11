@@ -84,11 +84,11 @@ function geomToPath(geometry, project) {
 }
 
 function fillFor(count, max) {
-  if (!count) return "#1c3554";
-  const t = Math.max(0.28, count / Math.max(max, 1));
-  const r = Math.round(28 + (63 - 28) * t);
-  const g = Math.round(53 + (215 - 53) * t);
-  const b = Math.round(84 + (255 - 84) * t);
+  if (!count) return "#d2d7df";
+  const t = Math.max(0.22, count / Math.max(max, 1));
+  const r = Math.round(42 + (230 - 42) * t);
+  const g = Math.round(63 + (189 - 63) * t);
+  const b = Math.round(95 + (117 - 95) * t);
   return `rgb(${r}, ${g}, ${b})`;
 }
 
@@ -156,8 +156,8 @@ export default function OriginMap({
       >
         <defs>
           <radialGradient id="originSea" cx="48%" cy="42%" r="78%">
-            <stop offset="0%" stopColor="#143258" />
-            <stop offset="100%" stopColor="#071428" />
+            <stop offset="0%" stopColor="#f3f5f8" />
+            <stop offset="100%" stopColor="#e4e9f0" />
           </radialGradient>
         </defs>
         <rect width={VIEW_W} height={VIEW_H} fill="url(#originSea)" rx="18" />
@@ -197,9 +197,9 @@ export default function OriginMap({
       <div className="origin-map-legend">
         <span>Цвет субъекта — сколько человек оттуда</span>
         <span className="origin-map-scale">
-          <i style={{ width: 12, height: 12, background: "#1c3554" }} /> нет
-          <i style={{ width: 12, height: 12, background: "#1494c8" }} /> мало
-          <i style={{ width: 12, height: 12, background: "#3fd7ff" }} /> много
+          <i style={{ width: 12, height: 12, background: "#d2d7df" }} /> нет
+          <i style={{ width: 12, height: 12, background: "#54657f" }} /> мало
+          <i style={{ width: 12, height: 12, background: "#e6bd75" }} /> много
         </span>
         {abroad.length ? (
           <span className="origin-abroad">

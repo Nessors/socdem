@@ -4,14 +4,14 @@
 
 :root {
   --field-height: 2.75rem;
-  --field-radius: 12px;
-  --field-border: rgba(197, 212, 230, 0.95);
+  --field-radius: 8px;
+  --field-border: #d2d7df;
   --field-bg: #ffffff;
-  --field-bg-muted: #f8fafc;
-  --field-shadow: inset 0 1px 2px rgba(7, 20, 40, 0.05);
+  --field-bg-muted: #f3f5f8;
+  --field-shadow: inset 0 1px 2px rgba(42, 63, 95, 0.04);
   --field-shadow-focus:
-    inset 0 1px 2px rgba(7, 20, 40, 0.04),
-    0 0 0 3px rgba(63, 215, 255, 0.22);
+    inset 0 1px 2px rgba(42, 63, 95, 0.04),
+    0 0 0 3px rgba(230, 189, 117, 0.35);
 }
 
 /* Базовый контрол */
@@ -28,6 +28,7 @@
 .search:not(label),
 .search-wide,
 .table-panel select,
+.docx-group-select,
 .docx-batch-group-all select,
 .docx-batch-table select,
 .login-card input:not([type="checkbox"]),
@@ -73,7 +74,7 @@ textarea.socdem-control {
 .login-card input:hover,
 .quick-search-field input:hover,
 .region-suggest-field input:hover {
-  border-color: rgba(20, 148, 200, 0.45);
+  border-color: rgba(84, 101, 127, 0.45);
 }
 
 .socdem-control:focus,
@@ -115,11 +116,12 @@ textarea:focus {
 .filter-bar select,
 .table-panel select,
 .dash-search-select,
+.docx-group-select,
 .docx-batch-group-all select,
 .docx-batch-table select {
   appearance: none;
   padding-right: 2.25rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%231494c8' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%232A3F5F' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 1rem;
@@ -229,7 +231,7 @@ textarea:focus {
   padding: 0.35rem;
   box-shadow:
     0 12px 32px rgba(7, 20, 40, 0.12),
-    0 0 0 1px rgba(63, 215, 255, 0.08);
+    0 0 0 1px rgba(230, 189, 117, 0.08);
 }
 
 .quick-search-list button {

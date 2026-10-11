@@ -1,5 +1,13 @@
 import JSZip from "jszip";
-import { cropBySrcRect, cropToBust, looksLikeFullBody } from "./cropImage.js";
+import {
+  cropBySrcRect,
+  cropToBust,
+  cropToBustFallback,
+  frameKind,
+  looksLikeFullBody,
+  photoAspectRatio,
+  sameImageBuffer,
+} from "./cropImage.js";
 import { foldDeathsFromRelatives, mergeMourning, parseDeathMention } from "./deathFromSocdem.js";
 import { needsRasterize, rasterizeToPng } from "./rasterizeImage.js";
 import {
@@ -861,30 +869,92 @@ function mergePhotoSets(primary, secondary, max = 2) {
   return out.slice(0, max);
 }
 
+async function refineBustSlot(photo, { force = true } = {}) {
+  if (!photo?.data?.length) return photo;
+  const beforeRatio = photoAspectRatio(photo.data) ?? 0;
+
+  for (const useForce of force ? [false, true] : [false]) {
+    const cropped = await cropToBust(photo.data, { force: useForce });
+    if (!cropped?.data) continue;
+    const afterRatio = photoAspectRatio(cropped.data) ?? beforeRatio;
+    if (
+      !sameImageBuffer(cropped.data, photo.data) ||
+      afterRatio < beforeRatio - 0.04
+    ) {
+      return { mime: cropped.mime, data: cropped.data };
+    }
+    if (afterRatio <= BUST_SLOT_MAX_ASPECT) {
+      return { mime: cropped.mime, data: cropped.data };
+    }
+  }
+
+  const fallback = await cropToBustFallback(photo.data);
+  if (fallback?.data && !sameImageBuffer(fallback.data, photo.data)) {
+    return { mime: fallback.mime, data: fallback.data };
+  }
+  return photo;
+}
+
+/** В превью л/с слот 2 не должен выглядеть как полный рост. */
+const BUST_SLOT_MAX_ASPECT = 1.58;
+
+async function finalizeBustSlot(fullPhoto, bustPhoto) {
+  let bust = await refineBustSlot(bustPhoto, { force: true });
+  if (sameImageBuffer(fullPhoto.data, bust.data)) {
+    const made = await cropToBust(fullPhoto.data, { force: true });
+    if (made?.data && !sameImageBuffer(made.data, fullPhoto.data)) {
+      bust = { mime: made.mime, data: made.data };
+    }
+  }
+  const ratio = photoAspectRatio(bust.data) ?? 0;
+  if (ratio >= BUST_SLOT_MAX_ASPECT) {
+    const fallback = await cropToBustFallback(bust.data);
+    if (fallback?.data) bust = { mime: fallback.mime, data: fallback.data };
+  }
+  return bust;
+}
+
 /**
- * Слот 1 — полный рост. Слот 2 — кадр по грудь (нашивки), если Word не отдал уже обрезанный.
+ * Слот 1 — фото в полный рост (левое в таблице Word), слот 2 — по грудь (правое).
+ * Меняем местами только если в документе явно перепутаны: слева по грудь, справа в рост.
+ * Слот 2 при необходимости обрезается; готовый кадр по грудь не трогаем.
  */
 async function ensureBustPhotos(photos, max = 2) {
-  if (!photos.length || max < 2) {
-    return photos.map(({ slot, mime, data }) => ({ slot, mime, data }));
-  }
-  const bySlot = new Map(photos.map((p) => [p.slot, { ...p }]));
-  const first = bySlot.get(1) ?? photos[0];
-
-  if (!bySlot.has(2) && looksLikeFullBody(first.data)) {
-    const bust = await cropToBust(first.data);
-    if (bust) bySlot.set(2, { slot: 2, ...bust, cropped: true });
+  const list = photos.filter((p) => p?.data?.length);
+  if (!list.length) return [];
+  if (max < 2) {
+    return [{ slot: 1, mime: list[0].mime, data: list[0].data }];
   }
 
-  const second = bySlot.get(2);
-  if (second && looksLikeFullBody(second.data)) {
-    const bust = await cropToBust(second.data);
-    if (bust) bySlot.set(2, { slot: 2, mime: bust.mime, data: bust.data, cropped: true });
+  const ordered = [...list].sort((a, b) => (a.slot ?? 99) - (b.slot ?? 99));
+
+  if (ordered.length === 1) {
+    const only = ordered[0];
+    if (!looksLikeFullBody(only.data)) {
+      return [{ slot: 2, mime: only.mime, data: only.data }];
+    }
+    const bust = await cropToBust(only.data, { force: true });
+    const out = [{ slot: 1, mime: only.mime, data: only.data }];
+    if (bust?.data) out.push({ slot: 2, mime: bust.mime, data: bust.data });
+    return out;
   }
 
-  return [...bySlot.values()]
-    .sort((a, b) => a.slot - b.slot)
-    .map(({ slot, mime, data }) => ({ slot, mime, data }));
+  let full = ordered[0];
+  let bust = ordered[1];
+  const leftKind = frameKind(full.data);
+  const rightKind = frameKind(bust.data);
+
+  if (leftKind === "bust" && rightKind === "full") {
+    full = ordered[1];
+    bust = ordered[0];
+  }
+
+  bust = await finalizeBustSlot(full, bust);
+
+  return [
+    { slot: 1, mime: full.mime, data: full.data },
+    { slot: 2, mime: bust.mime, data: bust.data },
+  ];
 }
 
 /**
@@ -902,10 +972,18 @@ async function extractPhotos(zip, max = 2) {
   const fromMedia = await extractPhotosFromMediaOrdered(zip, rels, docXml, max);
   const fromMediaSize = await extractPhotosFromMediaBySize(zip, max);
 
+  if (fromTable.length >= max) {
+    return ensureBustPhotos(fromTable, max);
+  }
+
   let photos = mergePhotoSets(fromTable, fromSection, max);
   photos = mergePhotoSets(photos, fromDrawings, max);
-  photos = mergePhotoSets(photos, fromMedia, max);
-  photos = mergePhotoSets(photos, fromMediaSize, max);
+  if (photos.length < max) {
+    photos = mergePhotoSets(photos, fromMedia, max);
+  }
+  if (photos.length < max) {
+    photos = mergePhotoSets(photos, fromMediaSize, max);
+  }
   return ensureBustPhotos(photos, max);
 }
 

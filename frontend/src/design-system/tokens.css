@@ -1,54 +1,143 @@
 /**
- * socdem — токены
- * Академия Можайского: глубокий космос и циан. Имена --brass/--gold = циан.
+ * Токены ВКА им. А.Ф. Можайского.
+ * Заголовки — Magistral, остальной интерфейс — Montserrat.
  */
 
-@import url("https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap");
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-LightItalic.ttf") format("truetype");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-Book.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-BookItalic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-MediumItalic.ttf") format("truetype");
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Magistral;
+  src: url("/fonts/Magistral-ExtraBoldItalic.ttf") format("truetype");
+  font-weight: 800;
+  font-style: italic;
+  font-display: swap;
+}
 
 :root {
-  --navy: #071428;
-  --navy-mid: #0c1f3d;
-  --navy-soft: #143258;
-  --brass: #3fd7ff;
-  --brass-deep: #1494c8;
-  --brass-soft: rgba(63, 215, 255, 0.14);
-  --ivory: #f3f7fc;
-  --ivory-deep: #e4ecf6;
+  --vka-navy: #2a3f5f;
+  --vka-navy-light: #54657f;
+  --vka-gold: #e6bd75;
+  --vka-gold-light: #ebca91;
+  --vka-gold-bright: #f5c451;
+  --vka-gray: #a4aebe;
+  --vka-gray-50: #d2d7df;
+  --vka-cream: #f3f5f8;
+
+  --navy: var(--vka-navy);
+  --navy-mid: #243652;
+  --navy-soft: var(--vka-navy-light);
+  --brass: var(--vka-gold);
+  --brass-deep: #8a6a2f;
+  --brass-soft: rgba(230, 189, 117, 0.2);
+  --ivory: var(--vka-cream);
+  --ivory-deep: #e8ecf2;
   --paper: #ffffff;
 
   --color-bg-deep: var(--ivory);
   --color-bg-elevated: var(--paper);
-  --color-bg-surface: #eef3fa;
+  --color-bg-surface: #eef1f5;
   --color-bg-inset: var(--ivory-deep);
 
   --color-primary: var(--navy);
-  --color-on-primary: #f4fbff;
-  --color-secondary: #2a3d52;
-  --color-on-secondary: #f4fbff;
-  --color-accent: var(--brass-deep);
-  --color-on-accent: #071428;
+  --color-on-primary: #ffffff;
+  --color-secondary: #4b5563;
+  --color-on-secondary: #ffffff;
+  --color-accent: var(--brass);
+  --color-on-accent: var(--navy);
 
-  --color-foreground: #0f1724;
-  --color-muted-foreground: #3a4656;
-  --color-on-primary-text: #f4fbff;
+  --color-foreground: var(--navy);
+  --color-muted-foreground: #4b5563;
+  --color-on-primary-text: #ffffff;
 
   --color-card: var(--paper);
-  --color-card-foreground: #0f1724;
-  --color-muted: #dce6f2;
-  --color-border: #c5d4e6;
-  --color-border-subtle: #e2eaf4;
+  --color-card-foreground: var(--navy);
+  --color-muted: var(--ivory-deep);
+  --color-border: var(--vka-gray-50);
+  --color-border-subtle: #e6eaef;
 
-  --color-destructive: #b42318;
+  --color-destructive: #7f1d1d;
   --color-on-destructive: #fff;
-  --color-success: #1f7a45;
-  --color-warning: #9a6700;
+  --color-success: #064e3b;
+  --color-warning: #b45309;
   --color-ring: var(--brass);
 
   --color-sidebar: var(--navy);
-  --color-sidebar-foreground: #c8dff5;
-  --color-sidebar-muted: #7a9bb8;
-  --color-sidebar-active: #7ae6ff;
-  --color-sidebar-border: rgba(63, 215, 255, 0.22);
+  --color-sidebar-foreground: rgba(255, 255, 255, 0.86);
+  --color-sidebar-muted: var(--vka-gray);
+  --color-sidebar-active: var(--navy);
+  --color-sidebar-border: rgba(230, 189, 117, 0.35);
 
   --bg-deep: var(--color-bg-deep);
   --bg-panel: var(--color-bg-elevated);
@@ -61,20 +150,20 @@
   --ink: var(--color-foreground);
   --muted: var(--color-muted-foreground);
   --border: var(--color-border);
-  --accent: var(--brass-deep);
+  --accent: var(--brass);
   --accent-soft: var(--brass-soft);
   --surface: var(--color-card);
-  --radius: 16px;
+  --radius: 12px;
 
-  --font-sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
-  --font-serif: "Source Serif 4", "Times New Roman", serif;
-  --font-mono: "Source Sans 3", ui-monospace, monospace;
-  --text-xs: 0.84rem;
-  --text-sm: 0.98rem;
-  --text-base: 1.125rem;
-  --text-lg: 1.28rem;
-  --text-xl: 1.5rem;
-  --text-2xl: 1.85rem;
+  --font-sans: "Montserrat", system-ui, sans-serif;
+  --font-serif: "Magistral", "Montserrat", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.875rem;
 
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
@@ -82,14 +171,14 @@
   --space-lg: 1.5rem;
   --space-xl: 2rem;
 
-  --shadow-sm: 0 1px 2px rgba(7, 20, 40, 0.06), 0 8px 24px rgba(7, 20, 40, 0.05);
-  --shadow-md: 0 12px 32px rgba(7, 20, 40, 0.1);
-  --shadow-lg: 0 24px 56px rgba(7, 20, 40, 0.14);
+  --shadow-sm: 0 4px 24px -4px rgba(42, 63, 95, 0.12);
+  --shadow-md: 0 10px 28px -8px rgba(42, 63, 95, 0.16);
+  --shadow-lg: 0 20px 50px -12px rgba(42, 63, 95, 0.2);
   --shadow-inset-glow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  --transition-fast: 160ms ease;
-  --transition-base: 220ms ease;
+  --transition-fast: 200ms ease;
+  --transition-base: 200ms ease;
 
-  --focus-ring: 0 0 0 3px rgba(63, 215, 255, 0.45);
+  --focus-ring: 0 0 0 3px rgba(230, 189, 117, 0.35);
   --min-touch: 44px;
   --sidebar-width: 300px;
 }

@@ -2,6 +2,7 @@ param(
   [Parameter(Mandatory = $true)][string]$InputPath,
   [Parameter(Mandatory = $true)][string]$OutputPath,
   [ValidateSet("pixels", "bust")][string]$Mode = "pixels",
+  [switch]$ForceBust,
   [int]$X = 0,
   [int]$Y = 0,
   [int]$Width = 0,
@@ -96,8 +97,8 @@ try {
     $box = Get-SubjectBox $bmp
     if ($null -eq $box) { throw "no subject" }
     $silhouette = $box.H / [double]$box.W
-    # Уже кадр по грудь (силуэт не в полный рост) — не режем повторно
-    if ($silhouette -lt 1.9) {
+    # Уже кадр по грудь — не режем повторно (кроме слота «по грудь» при импорте)
+    if (-not $ForceBust -and $silhouette -lt 1.48) {
       $bmp.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
       return
     }
@@ -106,7 +107,7 @@ try {
     $sx = [Math]::Max(0, $box.X - $padX)
     $sy = [Math]::Max(0, $box.Y - $padTop)
     $right = [Math]::Min($bmp.Width, $box.X + $box.W + $padX)
-    $bottom = [Math]::Min($bmp.Height, $box.Y + [int]($box.H * 0.48))
+    $bottom = [Math]::Min($bmp.Height, $box.Y + [int]($box.H * 0.44))
     $sw = $right - $sx
     $sh = $bottom - $sy
   }
